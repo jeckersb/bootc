@@ -1,9 +1,13 @@
 use std::collections::VecDeque;
 
-use crate::spec::{BootEntry, BootOrder, Host, HostSpec, HostStatus, HostType, ImageStatus};
+use crate::deploy::ImageState;
+use crate::spec::{
+    Backend, BootEntry, BootOrder, Host, HostSpec, HostStatus, HostType, ImageStatus,
+};
 use crate::spec::{ImageReference, ImageSignature};
 use anyhow::{Context, Result};
 use camino::Utf8Path;
+use clap::ValueEnum;
 use fn_error_context::context;
 use ostree::glib;
 use ostree_container::OstreeImageReference;
@@ -107,6 +111,16 @@ pub(crate) fn try_deserialize_timestamp(t: &str) -> Option<chrono::DateTime<chro
     }
 }
 
+pub(crate) fn get_image_backend(origin: &glib::KeyFile) -> Result<Backend> {
+    let r = origin
+        .optional_string("bootc", "backend")?
+        .map(|v| Backend::from_str(&v, true))
+        .transpose()
+        .map_err(anyhow::Error::msg)?
+        .unwrap_or_default();
+    Ok(r)
+}
+
 pub(crate) fn labels_of_config(
     config: &oci_spec::image::ImageConfiguration,
 ) -> Option<&std::collections::HashMap<String, String>> {
@@ -143,36 +157,53 @@ fn boot_entry_from_deployment(
     deployment: &ostree::Deployment,
 ) -> Result<BootEntry> {
     let repo = &sysroot.repo();
-    let (image, cached_update, incompatible) = if let Some(origin) = deployment.origin().as_ref() {
-        let incompatible = crate::utils::origin_has_rpmostree_stuff(origin);
-        let (image, cached) = if incompatible {
-            // If there are local changes, we can't represent it as a bootc compatible image.
-            (None, None)
-        } else if let Some(image) = get_image_origin(origin)? {
-            let image = ImageReference::from(image);
-            let csum = deployment.csum();
-            let imgstate = ostree_container::store::query_image_commit(repo, &csum)?;
-            let cached = imgstate.cached_update.map(|cached| {
-                create_imagestatus(image.clone(), &cached.manifest_digest, &cached.config)
-            });
-            let imagestatus =
-                create_imagestatus(image, &imgstate.manifest_digest, &imgstate.configuration);
-            // We found a container-image based deployment
-            (Some(imagestatus), cached)
+    let (image, cached_update, incompatible, backend) =
+        if let Some(origin) = deployment.origin().as_ref() {
+            let incompatible = crate::utils::origin_has_rpmostree_stuff(origin);
+            let backend = get_image_backend(origin)?;
+            let (image, cached) = if incompatible {
+                // If there are local changes, we can't represent it as a bootc compatible image.
+                (None, None)
+            } else if let Some(image) = get_image_origin(origin)? {
+                let image = ImageReference::from(image);
+                let csum = deployment.csum();
+                let imgstate = match backend {
+                    Backend::Container => {
+                        todo!()
+                    }
+                    Backend::OstreeContainer => {
+                        ImageState::from(*ostree_container::store::query_image_commit(repo, &csum)?)
+                    }
+                };
+                //let cached = imgstate.cached_update.map(|cached| {
+                //    create_imagestatus(image.clone(), &cached.manifest_digest, &cached.config)
+                //});
+                let cached = None;
+
+                (
+                    Some(ImageStatus {
+                        image,
+                        version: imgstate.version,
+                        timestamp: imgstate.created,
+                        image_digest: imgstate.manifest_digest,
+                    }),
+                    cached,
+                )
+            } else {
+                // The deployment isn't using a container image
+                (None, None)
+            };
+            (image, cached, incompatible, get_image_backend(origin)?)
         } else {
-            // The deployment isn't using a container image
-            (None, None)
+            // The deployment has no origin at all (this generally shouldn't happen)
+            (None, None, false, Default::default())
         };
-        (image, cached, incompatible)
-    } else {
-        // The deployment has no origin at all (this generally shouldn't happen)
-        (None, None, false)
-    };
     let r = BootEntry {
         image,
         cached_update,
         incompatible,
         pinned: deployment.is_pinned(),
+        backend,
         ostree: Some(crate::spec::BootEntryOstree {
             checksum: deployment.csum().into(),
             // SAFETY: The deployserial is really unsigned
@@ -270,10 +301,17 @@ pub(crate) fn get_status(
     let spec = staged
         .as_ref()
         .or(booted.as_ref())
-        .and_then(|entry| entry.image.as_ref())
-        .map(|img| HostSpec {
-            image: Some(img.image.clone()),
-            boot_order,
+        .and_then(|entry| {
+            let image = entry.image.as_ref();
+            if let Some(image) = image {
+                Some(HostSpec {
+                    image: Some(image.image.clone()),
+                    backend: entry.backend.clone(),
+                    boot_order,
+                })
+            } else {
+                None
+            }
         })
         .unwrap_or_default();
 
