@@ -19,6 +19,7 @@
 
 pub mod cli;
 pub(crate) mod deploy;
+pub(crate) mod hostexec;
 mod lsm;
 mod reboot;
 mod reexec;
