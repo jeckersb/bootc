@@ -396,7 +396,7 @@ async fn upgrade(opts: UpgradeOpts) -> Result<()> {
     let sysroot = &get_locked_sysroot().await?;
     let repo = &sysroot.repo();
     let (booted_deployment, _deployments, host) =
-        crate::status::get_status_require_booted(sysroot)?;
+        crate::status::get_status_require_booted(sysroot).await?;
     let imgref = host.spec.image.as_ref();
     // If there's no specified image, let's be nice and check if the booted system is using rpm-ostree
     if imgref.is_none() {
@@ -538,7 +538,7 @@ async fn switch(opts: SwitchOpts) -> Result<()> {
     let sysroot = &get_locked_sysroot().await?;
     let repo = &sysroot.repo();
     let (booted_deployment, _deployments, host) =
-        crate::status::get_status_require_booted(sysroot)?;
+        crate::status::get_status_require_booted(sysroot).await?;
 
     let new_spec = {
         let mut new_spec = host.spec.clone();
@@ -590,7 +590,7 @@ async fn edit(opts: EditOpts) -> Result<()> {
     prepare_for_write().await?;
     let sysroot = &get_locked_sysroot().await?;
     let (booted_deployment, _deployments, host) =
-        crate::status::get_status_require_booted(sysroot)?;
+        crate::status::get_status_require_booted(sysroot).await?;
     let new_host: Host = if let Some(filename) = opts.filename {
         let mut r = std::io::BufReader::new(std::fs::File::open(filename)?);
         serde_yaml::from_reader(&mut r)?
