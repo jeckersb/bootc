@@ -26,7 +26,6 @@ pub(crate) mod kargs;
 mod lints;
 mod lsm;
 pub(crate) mod metadata;
-mod ostree_authfile;
 mod podman;
 mod podman_ostree;
 mod reboot;
