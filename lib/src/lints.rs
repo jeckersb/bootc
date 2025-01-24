@@ -206,7 +206,7 @@ fn check_utf8(dir: &Dir) -> LintResult {
         let ifmt = entry.file_type()?;
         if ifmt.is_symlink() {
             let target = dir.read_link_contents(&name)?;
-            if !target.to_str().is_some() {
+            if target.to_str().is_none() {
                 return lint_err(format!("/{strname}: Found non-utf8 symlink target"));
             }
         } else if ifmt.is_dir() {

@@ -125,7 +125,7 @@ pub fn open_dir_noxdev(
     ) {
         Ok(r) => Ok(Some(Dir::reopen_dir(&r)?)),
         Err(e) if e == rustix::io::Errno::XDEV => Ok(None),
-        Err(e) => return Err(e.into()),
+        Err(e) => Err(e.into()),
     }
 }
 

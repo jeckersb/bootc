@@ -139,6 +139,7 @@ fn prefix_of_progress(p: &ImportProgress) -> &'static str {
 }
 
 /// Write container fetch progress to standard output.
+#[allow(clippy::too_many_arguments)]
 async fn handle_layer_progress_print(
     mut layers: tokio::sync::mpsc::Receiver<ostree_container::store::ImportProgress>,
     mut layer_bytes: tokio::sync::watch::Receiver<Option<ostree_container::store::LayerProgress>>,
@@ -201,7 +202,7 @@ async fn handle_layer_progress_print(
                         subtask = SubTaskBytes {
                             subtask: layer_type.into(),
                             description: format!("{layer_type}: {short_digest}").clone().into(),
-                            id: format!("{short_digest}").clone().into(),
+                            id: short_digest.to_string().clone().into(),
                             bytes_cached: 0,
                             bytes: 0,
                             bytes_total: layer_size,
