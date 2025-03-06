@@ -15,6 +15,7 @@ use clap::Parser;
 use clap::ValueEnum;
 use composefs::fsverity;
 use fn_error_context::context;
+use indoc::indoc;
 use ostree::gio;
 use ostree_container::store::PrepareResult;
 use ostree_ext::container as ostree_container;
@@ -508,6 +509,34 @@ pub(crate) enum Opt {
     ///
     /// A systemd journal message will be logged with `MESSAGE_ID=26f3b1eb24464d12aa5e7b544a6b5468` in
     /// order to detect a rollback invocation.
+    #[command(after_help = indoc! {r#"
+        Note on Rollbacks and the `/etc` Directory:
+
+        When you perform a rollback (e.g., with `bootc rollback`), any
+        changes made to files in the `/etc` directory won’t carry over
+        to the rolled-back deployment.  The `/etc` files will revert
+        to their state from that previous deployment instead.
+
+        This is because `bootc rollback` just reorders the existing
+        deployments. It doesn't create new deployments. The `/etc`
+        merges happen when new deployments are created.
+
+        If you want to save a modified `/etc` file for use after the
+        rollback: You can copy it to a directory under `/var`, like
+        `/var/home/User` (for a specific user) or `/var/root/` (for
+        the root user).  These directories aren’t affected by the
+        rollback as it is user content.
+
+        Going back to the original state from either through a
+        temporary rollback or another `bootc rollback`, the `/etc`
+        directory will restore to its state from that original
+        deployment.
+
+        To perform a logical rollback, while still carrying forward
+        changes to local configuration files, use `bootc switch` to an
+        explicit prior image tag or digest. This acts the same as a
+        `bootc upgrade`, just with older content.
+    "#})]
     Rollback(RollbackOpts),
     /// Apply full changes to the host specification.
     ///
