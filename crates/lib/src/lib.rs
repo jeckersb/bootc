@@ -34,7 +34,7 @@ mod docgen;
 mod bootloader;
 mod containerenv;
 mod install;
-mod kernel;
+pub(crate) mod kernel;
 
 #[cfg(feature = "rhsm")]
 mod rhsm;
