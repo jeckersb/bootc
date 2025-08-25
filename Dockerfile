@@ -93,5 +93,7 @@ fi
 # tests to know we're doing upstream CI.
 touch /usr/lib/.bootc-dev-stamp
 # And test our own linting
+## Workaround for https://github.com/bootc-dev/bootc/issues/1546
+rm -rf /root/buildinfo
 bootc container lint --fatal-warnings
 EORUN

@@ -37,13 +37,9 @@ impl SysrootLock {
     /// immediately, a status message will be printed to standard output.
     /// The lock will be unlocked when this object is dropped.
     pub async fn new_from_sysroot(sysroot: &ostree::Sysroot) -> Result<Self> {
-        if sysroot.try_lock()? {
-            return Ok(Self {
-                sysroot: sysroot.clone(),
-                unowned: false,
-            });
-        }
-        async_task_with_spinner("Waiting for sysroot lock...", sysroot.lock_future()).await?;
+        let sysroot_clone = sysroot.clone();
+        let locker = tokio::task::spawn_blocking(move || sysroot_clone.lock());
+        async_task_with_spinner("Waiting for sysroot lock...", locker).await??;
         Ok(Self {
             sysroot: sysroot.clone(),
             unowned: false,
