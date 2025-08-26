@@ -171,7 +171,7 @@ pub fn analyze_for_repair(sysroot: &SysrootLock, verbose: bool) -> Result<Repair
     let staged_checksum = staged_checksum.as_ref().map(|s| s.as_str());
 
     let inodes = check_inode_collision(repo, verbose)?;
-    println!("{}", inodes);
+    println!("{inodes}");
     if inodes.is_ok() {
         println!("OK no colliding inodes found");
         return Ok(RepairResult {

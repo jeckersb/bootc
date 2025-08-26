@@ -567,7 +567,7 @@ mod tests {
             match normalize_validate_path(k.into(), imp_default).unwrap() {
                 NormalizedPathResult::Filtered(_) => {}
                 NormalizedPathResult::Normal(_) => {
-                    panic!("{} should be filtered", k)
+                    panic!("{k} should be filtered")
                 }
             }
         }

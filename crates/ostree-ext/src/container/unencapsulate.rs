@@ -169,7 +169,7 @@ pub(crate) async fn join_fetch<T: std::fmt::Debug>(
                 tracing::trace!("Ignoring broken pipe failure from driver");
                 Err(worker)
             } else {
-                Err(worker.context(format!("proxy failure: {} and client error", text)))
+                Err(worker.context(format!("proxy failure: {text} and client error")))
             }
         }
         (Ok(_), Err(driver)) => Err(driver),

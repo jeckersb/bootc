@@ -155,9 +155,9 @@ fn test_proxy_auth() -> Result<()> {
 pub(crate) async fn create_fixture() -> Result<()> {
     let fixture = crate::fixture::Fixture::new_v1()?;
     let imgref = fixture.export_container().await?.0;
-    println!("Wrote: {:?}", imgref);
+    println!("Wrote: {imgref:?}");
     let path = fixture.into_tempdir().keep();
-    println!("Wrote: {:?}", path);
+    println!("Wrote: {path:?}");
     Ok(())
 }
 
