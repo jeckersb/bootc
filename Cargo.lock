@@ -191,6 +191,12 @@ name = "bootc-initramfs-setup"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
+ "composefs",
+ "composefs-boot",
+ "rustix 1.0.8",
+ "serde",
+ "toml 0.9.5",
 ]
 
 [[package]]
