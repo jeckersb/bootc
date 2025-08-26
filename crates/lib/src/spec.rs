@@ -95,9 +95,7 @@ pub struct ImageReference {
 /// If the reference is in :tag@digest form, strip the tag.
 fn canonicalize_reference(reference: Reference) -> Option<Reference> {
     // No tag? Just pass through.
-    if reference.tag().is_none() {
-        return None;
-    }
+    reference.tag()?;
 
     // No digest? Also pass through.
     let Some(digest) = reference.digest() else {
@@ -126,7 +124,7 @@ impl ImageReference {
                     transport: self.transport.clone(),
                     signature: self.signature.clone(),
                 };
-                return Ok(r);
+                Ok(r)
             }
             _ => {
                 // For other transports, we don't do any canonicalization
@@ -349,14 +347,14 @@ mod tests {
         let test_cases = [
             // When both a tag and digest are present, the digest should be used
             (
-                format!("quay.io/example/someimage:latest@{}", sample_digest),
-                format!("quay.io/example/someimage@{}", sample_digest),
+                format!("quay.io/example/someimage:latest@{sample_digest}"),
+                format!("quay.io/example/someimage@{sample_digest}"),
                 "registry",
             ),
             // When only a digest is present, it should be used
             (
-                format!("quay.io/example/someimage@{}", sample_digest),
-                format!("quay.io/example/someimage@{}", sample_digest),
+                format!("quay.io/example/someimage@{sample_digest}"),
+                format!("quay.io/example/someimage@{sample_digest}"),
                 "registry",
             ),
             // When only a tag is present, it should be preserved
@@ -385,13 +383,13 @@ mod tests {
             ),
             // Other cases are not canonicalized
             (
-                format!("quay.io/example/someimage:latest@{}", sample_digest),
-                format!("quay.io/example/someimage:latest@{}", sample_digest),
+                format!("quay.io/example/someimage:latest@{sample_digest}"),
+                format!("quay.io/example/someimage:latest@{sample_digest}"),
                 "containers-storage",
             ),
             (
-                format!("/path/to/dir:latest"),
-                format!("/path/to/dir:latest"),
+                "/path/to/dir:latest".to_string(),
+                "/path/to/dir:latest".to_string(),
                 "oci",
             ),
             (

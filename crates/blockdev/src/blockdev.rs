@@ -49,7 +49,7 @@ impl Device {
 
     #[allow(dead_code)]
     pub fn has_children(&self) -> bool {
-        self.children.as_ref().map_or(false, |v| !v.is_empty())
+        self.children.as_ref().is_some_and(|v| !v.is_empty())
     }
 
     // The "start" parameter was only added in a version of util-linux that's only
@@ -451,7 +451,7 @@ mod test {
     #[test]
     fn test_parse_lsblk() {
         let fixture = include_str!("../tests/fixtures/lsblk.json");
-        let devs: DevicesOutput = serde_json::from_str(&fixture).unwrap();
+        let devs: DevicesOutput = serde_json::from_str(fixture).unwrap();
         let dev = devs.blockdevices.into_iter().next().unwrap();
         let children = dev.children.as_deref().unwrap();
         assert_eq!(children.len(), 3);
@@ -498,7 +498,7 @@ mod test {
             }
          }
         "# };
-        let table: SfDiskOutput = serde_json::from_str(&fixture).unwrap();
+        let table: SfDiskOutput = serde_json::from_str(fixture).unwrap();
         assert_eq!(
             table.partitiontable.find("/dev/loop0p2").unwrap().size,
             20961247

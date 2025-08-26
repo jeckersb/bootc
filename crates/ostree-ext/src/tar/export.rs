@@ -106,7 +106,7 @@ pub(crate) fn path_equivalent_for_tar(a: impl AsRef<Utf8Path>, b: impl AsRef<Utf
         } else if let Ok(p) = p.strip_prefix("./") {
             return p;
         }
-        return p;
+        p
     }
     strip_prefix(a.as_ref()) == strip_prefix(b.as_ref())
 }
@@ -135,24 +135,20 @@ pub(crate) fn object_path(objtype: ostree::ObjectType, checksum: &str) -> Utf8Pa
         ostree::ObjectType::DirTree => "dirtree",
         ostree::ObjectType::DirMeta => "dirmeta",
         ostree::ObjectType::File => "file",
-        o => panic!("Unexpected object type: {:?}", o),
+        o => panic!("Unexpected object type: {o:?}"),
     };
     let (first, rest) = checksum.split_at(2);
-    format!("{}/repo/objects/{}/{}.{}", OSTREEDIR, first, rest, suffix).into()
+    format!("{OSTREEDIR}/repo/objects/{first}/{rest}.{suffix}").into()
 }
 
 fn v1_xattrs_object_path(checksum: &str) -> Utf8PathBuf {
     let (first, rest) = checksum.split_at(2);
-    format!("{}/repo/objects/{}/{}.file-xattrs", OSTREEDIR, first, rest).into()
+    format!("{OSTREEDIR}/repo/objects/{first}/{rest}.file-xattrs").into()
 }
 
 fn v1_xattrs_link_object_path(checksum: &str) -> Utf8PathBuf {
     let (first, rest) = checksum.split_at(2);
-    format!(
-        "{}/repo/objects/{}/{}.file-xattrs-link",
-        OSTREEDIR, first, rest
-    )
-    .into()
+    format!("{OSTREEDIR}/repo/objects/{first}/{rest}.file-xattrs-link").into()
 }
 
 /// Check for "denormal" symlinks which contain "//"
@@ -247,7 +243,7 @@ impl<'a, W: std::io::Write> OstreeTarWriter<'a, W> {
             return Ok(());
         }
 
-        let objdir: Utf8PathBuf = format!("{}/repo/objects", OSTREEDIR).into();
+        let objdir: Utf8PathBuf = format!("{OSTREEDIR}/repo/objects").into();
         // Add all parent directories
         let parent_dirs = {
             let mut parts: Vec<_> = objdir.ancestors().collect();
@@ -263,7 +259,7 @@ impl<'a, W: std::io::Write> OstreeTarWriter<'a, W> {
         }
         // Object subdirectories
         for d in 0..=0xFF {
-            let path: Utf8PathBuf = format!("{}/{:02x}", objdir, d).into();
+            let path: Utf8PathBuf = format!("{objdir}/{d:02x}").into();
             self.append_default_dir(&path)?;
         }
         // Standard repo subdirectories.
@@ -278,13 +274,13 @@ impl<'a, W: std::io::Write> OstreeTarWriter<'a, W> {
             "tmp/cache",
         ];
         for d in subdirs {
-            let path: Utf8PathBuf = format!("{}/repo/{}", OSTREEDIR, d).into();
+            let path: Utf8PathBuf = format!("{OSTREEDIR}/repo/{d}").into();
             self.append_default_dir(&path)?;
         }
 
         // Repository configuration file.
         {
-            let path = format!("{}/repo/config", OSTREEDIR);
+            let path = format!("{OSTREEDIR}/repo/config");
             self.append_default_data(Utf8Path::new(&path), REPO_CONFIG.as_bytes())?;
         }
 
@@ -363,7 +359,7 @@ impl<'a, W: std::io::Write> OstreeTarWriter<'a, W> {
             ostree::ObjectType::Commit | ostree::ObjectType::CommitMeta => None,
             ostree::ObjectType::DirTree => Some(&mut self.wrote_dirtree),
             ostree::ObjectType::DirMeta => Some(&mut self.wrote_dirmeta),
-            o => panic!("Unexpected object type: {:?}", o),
+            o => panic!("Unexpected object type: {o:?}"),
         };
         if let Some(set) = set {
             if set.contains(checksum) {
@@ -473,7 +469,7 @@ impl<'a, W: std::io::Write> OstreeTarWriter<'a, W> {
                 let mut instream = BufReader::with_capacity(BUF_CAPACITY, instream.into_read());
                 self.out
                     .append_data(&mut h, &path, &mut instream)
-                    .with_context(|| format!("Writing regfile {}", checksum))?;
+                    .with_context(|| format!("Writing regfile {checksum}"))?;
             } else {
                 ensure!(meta.file_type() == gio::FileType::SymbolicLink);
 
@@ -483,7 +479,7 @@ impl<'a, W: std::io::Write> OstreeTarWriter<'a, W> {
                 let target = target
                     .to_str()
                     .ok_or_else(|| anyhow!("Invalid UTF-8 symlink target: {target:?}"))?;
-                let context = || format!("Writing content symlink: {}", checksum);
+                let context = || format!("Writing content symlink: {checksum}");
                 // Handle //chkconfig, see above
                 if symlink_is_denormal(target) {
                     h.set_link_name_literal(target).with_context(context)?;

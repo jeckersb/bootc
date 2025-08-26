@@ -1447,7 +1447,7 @@ async fn install_to_filesystem_impl(
         if matches!(cleanup, Cleanup::TriggerOnNextBoot) {
             let sysroot_dir = crate::utils::sysroot_dir(ostree)?;
             tracing::debug!("Writing {DESTRUCTIVE_CLEANUP}");
-            sysroot_dir.atomic_write(format!("etc/{}", DESTRUCTIVE_CLEANUP), b"")?;
+            sysroot_dir.atomic_write(format!("etc/{DESTRUCTIVE_CLEANUP}"), b"")?;
         }
 
         // We must drop the sysroot here in order to close any open file

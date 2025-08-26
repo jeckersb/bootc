@@ -526,7 +526,7 @@ fn human_render_slot(
             write_row_name(&mut out, "Signature", prefix_len)?;
             match signature {
                 crate::spec::ImageSignature::OstreeRemote(remote) => {
-                    writeln!(out, "ostree-remote:{}", remote)?;
+                    writeln!(out, "ostree-remote:{remote}")?;
                 }
                 crate::spec::ImageSignature::ContainerPolicy => {
                     writeln!(out, "container-policy")?;

@@ -586,7 +586,7 @@ async fn tar_import(opts: &ImportOpts) -> Result<()> {
         let stdin = tokio::io::stdin();
         crate::tar::import_tar(&repo, stdin, None).await?
     };
-    println!("Imported: {}", imported);
+    println!("Imported: {imported}");
     Ok(())
 }
 
@@ -852,14 +852,14 @@ async fn container_export(
         ..Default::default()
     };
     let pushed = crate::container::encapsulate(repo, rev, &config, Some(opts), imgref).await?;
-    println!("{}", pushed);
+    println!("{pushed}");
     Ok(())
 }
 
 /// Load metadata for a container image with an encapsulated ostree commit.
 async fn container_info(imgref: &OstreeImageReference) -> Result<()> {
     let (_, digest) = crate::container::fetch_manifest(imgref).await?;
-    println!("{} digest: {}", imgref, digest);
+    println!("{imgref} digest: {digest}");
     Ok(())
 }
 
@@ -1050,7 +1050,7 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
         Opt::Tar(TarOpts::Export(ref opt)) => tar_export(opt),
         Opt::Container(o) => match o {
             ContainerOpts::Info { imgref } => container_info(&imgref).await,
-            ContainerOpts::Commit {} => container_commit().await,
+            ContainerOpts::Commit => container_commit().await,
             ContainerOpts::Unencapsulate {
                 repo,
                 imgref,
@@ -1103,7 +1103,7 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                 ContainerImageOpts::List { repo } => {
                     let repo = parse_repo(&repo)?;
                     for image in crate::container::store::list_images(&repo)? {
-                        println!("{}", image);
+                        println!("{image}");
                     }
                     Ok(())
                 }
@@ -1253,7 +1253,7 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                         contents.as_deref(),
                     )
                     .await?;
-                    println!("Pushed: {}", digest);
+                    println!("Pushed: {digest}");
                     Ok(())
                 }
                 ContainerImageOpts::Deploy {
@@ -1344,7 +1344,7 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                     }
                     if let Some(p) = write_commitid_to {
                         std::fs::write(&p, state.merge_commit.as_bytes())
-                            .with_context(|| format!("Failed to write commitid to {}", p))?;
+                            .with_context(|| format!("Failed to write commitid to {p}"))?;
                     }
                     Ok(())
                 }

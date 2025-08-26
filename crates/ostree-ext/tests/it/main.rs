@@ -53,7 +53,7 @@ fn assert_err_contains<T>(r: Result<T>, s: impl AsRef<str>) {
     let s = s.as_ref();
     let msg = format!("{:#}", r.err().expect("Expecting an error"));
     if !msg.contains(s) {
-        panic!(r#"Error message "{}" did not contain "{}""#, msg, s);
+        panic!(r#"Error message "{msg}" did not contain "{s}""#);
     }
 }
 
@@ -273,7 +273,7 @@ fn validate_tar_expected<T: std::io::Read>(
         }
         seen_paths.insert(entry_path.clone());
         if let Some(exp) = expected.remove(entry_path.as_str()) {
-            assert_eq!(header.entry_type(), exp.etype, "{}", entry_path);
+            assert_eq!(header.entry_type(), exp.etype, "{entry_path}");
             let expected_mode = exp.mode;
             let header_mode = header.mode().unwrap();
             assert_eq!(
@@ -301,11 +301,7 @@ fn validate_tar_expected<T: std::io::Read>(
         }
     }
 
-    assert!(
-        expected.is_empty(),
-        "Expected but not found:\n{:?}",
-        expected
-    );
+    assert!(expected.is_empty(), "Expected but not found:\n{expected:?}");
     Ok(())
 }
 
@@ -2009,7 +2005,7 @@ async fn test_container_import_export_registry() -> Result<()> {
         .context("Failed to resolve ref")?;
     let src_imgref = ImageReference {
         transport: Transport::Registry,
-        name: format!("{}/exampleos", tr),
+        name: format!("{tr}/exampleos"),
     };
     let config = Config {
         cmd: Some(vec!["/bin/bash".to_string()]),

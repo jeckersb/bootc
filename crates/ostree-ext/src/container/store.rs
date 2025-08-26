@@ -511,7 +511,7 @@ impl ImageImporter {
         system_repo_journal_print(
             repo,
             libsystemd::logging::Priority::Info,
-            &format!("Fetching {}", imgref),
+            &format!("Fetching {imgref}"),
         );
 
         let repo = repo.clone();
@@ -637,7 +637,7 @@ impl ImageImporter {
         let config_labels = super::labels_of(&config);
         if self.require_bootable {
             let bootable_key = ostree::METADATA_KEY_BOOTABLE;
-            let bootable = config_labels.map_or(false, |l| {
+            let bootable = config_labels.is_some_and(|l| {
                 l.contains_key(bootable_key.as_str()) || l.contains_key(BOOTC_LABEL)
             });
             if !bootable {
@@ -1828,7 +1828,7 @@ fn compare_file_info(src: &gio::FileInfo, target: &gio::FileInfo) -> bool {
 fn inode_of_object(repo: &ostree::Repo, checksum: &str) -> Result<u64> {
     let repodir = Dir::reopen_dir(&repo.dfd_borrow())?;
     let (prefix, suffix) = checksum.split_at(2);
-    let objpath = format!("objects/{}/{}.file", prefix, suffix);
+    let objpath = format!("objects/{prefix}/{suffix}.file");
     let metadata = repodir.symlink_metadata(objpath)?;
     Ok(metadata.ino())
 }
@@ -1870,7 +1870,7 @@ fn compare_commit_trees(
                 let from_contents_checksum = from_child.tree_get_contents_checksum();
                 let to_contents_checksum = to_child.tree_get_contents_checksum();
                 if from_contents_checksum != to_contents_checksum {
-                    let subpath = Utf8PathBuf::from(format!("{}/", path));
+                    let subpath = Utf8PathBuf::from(format!("{path}/"));
                     compare_commit_trees(
                         repo,
                         &subpath,

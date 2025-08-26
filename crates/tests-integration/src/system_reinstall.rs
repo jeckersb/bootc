@@ -41,7 +41,7 @@ fn get_deployment_dir() -> Result<std::path::PathBuf> {
         .to_str()
         .ok_or_else(|| anyhow!("Deployment directory name {:?} is not valid UTF-8", hash))?;
 
-    println!("Using deployment directory: {}", hash_str);
+    println!("Using deployment directory: {hash_str}");
 
     Ok(base_path.join(hash_str))
 }

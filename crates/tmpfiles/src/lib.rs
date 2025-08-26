@@ -82,7 +82,7 @@ fn escape_path<W: std::fmt::Write>(path: &Path, out: &mut W) -> std::fmt::Result
         return Err(std::fmt::Error);
     }
 
-    if let Some(s) = path.as_os_str().as_str().ok() {
+    if let Ok(s) = path.as_os_str().as_str() {
         if s.chars().all(|c| c.is_ascii_alphanumeric() || c == '/') {
             return write!(out, "{s}");
         }
@@ -99,7 +99,7 @@ fn escape_path<W: std::fmt::Write>(path: &Path, out: &mut W) -> std::fmt::Result
                 b'\n' => out.write_str(r"\n")?,
                 b'\t' => out.write_str(r"\t")?,
                 b'\r' => out.write_str(r"\r")?,
-                o => write!(out, "\\x{:02x}", o)?,
+                o => write!(out, "\\x{o:02x}")?,
             }
         }
     }
@@ -137,16 +137,8 @@ where
             b't' => b'\t',
             b'x' => {
                 let mut s = String::new();
-                s.push(
-                    src.next()
-                        .ok_or_else(|| Error::MalformedTmpfilesPath)?
-                        .into(),
-                );
-                s.push(
-                    src.next()
-                        .ok_or_else(|| Error::MalformedTmpfilesPath)?
-                        .into(),
-                );
+                s.push(src.next().ok_or(Error::MalformedTmpfilesPath)?.into());
+                s.push(src.next().ok_or(Error::MalformedTmpfilesPath)?.into());
 
                 u8::from_str_radix(&s, 16).map_err(|_| Error::MalformedTmpfilesPath)?
             }
@@ -162,7 +154,7 @@ where
     I: Iterator<Item = u8>,
 {
     let mut r = Vec::new();
-    if let Some(_) = src.next_if_eq(&b'"') {
+    if src.next_if_eq(&b'"').is_some() {
         impl_unescape_path_until(src, &mut r, true)?;
     } else {
         impl_unescape_path_until(src, &mut r, false)?;
@@ -221,7 +213,7 @@ pub(crate) fn translate_to_tmpfiles_d(
         FileMeta::Directory(_) => 'd',
         FileMeta::Symlink(_) => 'L',
     };
-    write!(bufwr, "{} ", filetype_char)?;
+    write!(bufwr, "{filetype_char} ")?;
     canonicalize_escape_path(abs_path, &mut bufwr)?;
 
     match meta {
@@ -356,7 +348,7 @@ fn convert_path_to_tmpfiles_d_recurse<U: uzers::Users, G: uzers::Groups>(
                 let gid = meta.gid();
                 let user = users
                     .get_user_by_uid(meta.uid())
-                    .ok_or_else(|| Error::UserNotFound(uid))?;
+                    .ok_or(Error::UserNotFound(uid))?;
                 let username = user.name();
                 let username: &str = username.to_str().ok_or_else(|| Error::NonUtf8User {
                     uid,
@@ -364,7 +356,7 @@ fn convert_path_to_tmpfiles_d_recurse<U: uzers::Users, G: uzers::Groups>(
                 })?;
                 let group = groups
                     .get_group_by_gid(gid)
-                    .ok_or_else(|| Error::GroupNotFound(gid))?;
+                    .ok_or(Error::GroupNotFound(gid))?;
                 let groupname = group.name();
                 let groupname: &str = groupname.to_str().ok_or_else(|| Error::NonUtf8Group {
                     gid,
@@ -499,17 +491,17 @@ fn tmpfiles_entry_get_path(line: &str) -> Result<PathBuf> {
     let err = || Error::MalformedTmpfilesEntry(line.to_string());
     let mut it = line.as_bytes().iter().copied().peekable();
     // Skip leading whitespace
-    while let Some(_) = it.next_if(|c| c.is_ascii_whitespace()) {}
+    while it.next_if(|c| c.is_ascii_whitespace()).is_some() {}
     // Skip the file type
     let mut found_ftype = false;
-    while let Some(_) = it.next_if(|c| !c.is_ascii_whitespace()) {
+    while it.next_if(|c| !c.is_ascii_whitespace()).is_some() {
         found_ftype = true
     }
     if !found_ftype {
         return Err(err());
     }
     // Skip trailing whitespace
-    while let Some(_) = it.next_if(|c| c.is_ascii_whitespace()) {}
+    while it.next_if(|c| c.is_ascii_whitespace()).is_some() {}
     unescape_path(&mut it)
 }
 

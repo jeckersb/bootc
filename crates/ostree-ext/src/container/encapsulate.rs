@@ -273,7 +273,7 @@ fn build_oci(
     let mut annos = HashMap::new();
     annos.insert(BLOB_OSTREE_ANNOTATION.to_string(), "true".to_string());
     let description = if commit_subject.is_empty() {
-        Cow::Owned(format!("ostree export of commit {}", commit))
+        Cow::Owned(format!("ostree export of commit {commit}"))
     } else {
         Cow::Borrowed(commit_subject)
     };

@@ -25,7 +25,6 @@ use cap_std_ext::cap_std::fs::{Dir, DirBuilder, DirBuilderExt as _};
 use cap_std_ext::dirext::CapStdExtDirExt;
 use fn_error_context::context;
 
-use composefs;
 use ostree_ext::ostree;
 use ostree_ext::sysroot::SysrootLock;
 use rustix::fs::Mode;
@@ -175,6 +174,5 @@ impl Storage {
         sysroot_dir
             .update_timestamps(std::path::Path::new(BOOTC_ROOT))
             .context("update_timestamps")
-            .map_err(Into::into)
     }
 }

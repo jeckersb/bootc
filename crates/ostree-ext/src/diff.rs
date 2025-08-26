@@ -104,7 +104,7 @@ fn diff_recurse(
                 let from_contents_checksum = from_child.tree_get_contents_checksum();
                 let to_contents_checksum = to_child.tree_get_contents_checksum();
                 if from_contents_checksum != to_contents_checksum {
-                    let subpath = format!("{}/", path);
+                    let subpath = format!("{path}/");
                     diff_recurse(&subpath, diff, &from_child, &to_child)?;
                 }
                 let from_meta_checksum = from_child.tree_get_metadata_checksum();

@@ -172,15 +172,14 @@ fn get_keys_from_files(user: &uzers::User, keyfiles: &Vec<&str>) -> Result<Vec<P
 
 fn get_keys_from_command(command: &str, command_user: &str) -> Result<Vec<PublicKey>> {
     let user_config = uzers::get_user_by_name(command_user).context(format!(
-        "authorized_keys_command_user {} not found",
-        command_user
+        "authorized_keys_command_user {command_user} not found"
     ))?;
 
     let mut cmd = Command::new(command);
     cmd.uid(user_config.uid());
     let output = cmd
         .run_get_output()
-        .context(format!("running authorized_keys_command {}", command))?;
+        .context(format!("running authorized_keys_command {command}"))?;
     let keys = PublicKey::read_keys(output)?;
     Ok(keys)
 }
@@ -201,7 +200,7 @@ pub(crate) fn get_all_users_keys() -> Result<Vec<UserKeys>> {
 
     for user_name in loginctl_user_names {
         let user_info = uzers::get_user_by_name(user_name.as_str())
-            .context(format!("user {} not found", user_name))?;
+            .context(format!("user {user_name} not found"))?;
 
         let mut user_authorized_keys: Vec<PublicKey> = Vec::new();
         if !sshd_config.authorized_keys_files.is_empty() {

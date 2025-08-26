@@ -399,7 +399,7 @@ impl Chunking {
                         let r = bin.iter().map(|v| &*v.meta.identifier).skip(1).fold(
                             String::from(first_name),
                             |mut acc, v| {
-                                write!(acc, " and {}", v).unwrap();
+                                write!(acc, " and {v}").unwrap();
                                 acc
                             },
                         );
@@ -478,12 +478,12 @@ fn packing_size(packing: &[Vec<&ObjectSourceMetaSized>]) -> u64 {
 /// of (high, medium, low) size and (high,medium,low) using the following
 /// outlier detection methods:
 /// - Median and Median Absolute Deviation Method
-///      Aggressively detects outliers in size and classifies them by
-///      high, medium, low. The high size and low size are separate partitions
-///      and deserve bins of their own
+///   Aggressively detects outliers in size and classifies them by
+///   high, medium, low. The high size and low size are separate partitions
+///   and deserve bins of their own
 /// - Mean and Standard Deviation Method
-///      The medium partition from the previous step is less aggressively
-///      classified by using mean for both size and frequency
+///   The medium partition from the previous step is less aggressively
+///   classified by using mean for both size and frequency
 ///
 /// Note: Assumes components is sorted by descending size
 fn get_partitions_with_threshold<'a>(
@@ -1075,9 +1075,9 @@ mod test {
             .iter()
             .map(|&(id, freq, size)| ObjectSourceMetaSized {
                 meta: ObjectSourceMeta {
-                    identifier: RcStr::from(format!("pkg{}.0", id)),
-                    name: RcStr::from(format!("pkg{}", id)),
-                    srcid: RcStr::from(format!("srcpkg{}", id)),
+                    identifier: RcStr::from(format!("pkg{id}.0")),
+                    name: RcStr::from(format!("pkg{id}")),
+                    srcid: RcStr::from(format!("srcpkg{id}")),
                     change_time_offset: 0,
                     change_frequency: freq,
                 },
@@ -1089,7 +1089,7 @@ mod test {
         let mut object_map = IndexMap::new();
 
         for (i, component) in contentmeta.iter().enumerate() {
-            let checksum = format!("checksum_{}", i);
+            let checksum = format!("checksum_{i}");
             object_map.insert(checksum, component.meta.identifier.clone());
         }
 
@@ -1109,12 +1109,12 @@ mod test {
         // Add fake objects to the remainder chunk if specified
         if let Some(num_objects) = num_fake_objects {
             for i in 0..num_objects {
-                let checksum = format!("checksum_{}", i);
+                let checksum = format!("checksum_{i}");
                 chunking.remainder.content.insert(
                     RcStr::from(checksum),
                     (
                         1000,
-                        vec![Utf8PathBuf::from(format!("/path/to/checksum_{}", i))],
+                        vec![Utf8PathBuf::from(format!("/path/to/checksum_{i}"))],
                     ),
                 );
                 chunking.remainder.size += 1000;
@@ -1329,7 +1329,7 @@ mod test {
                 .iter()
                 .map(|obj| {
                     (
-                        Utf8PathBuf::from(format!("/path/to/{}", obj)),
+                        Utf8PathBuf::from(format!("/path/to/{obj}")),
                         obj.to_string(),
                     )
                 })
@@ -1341,7 +1341,7 @@ mod test {
                 .iter()
                 .map(|obj| {
                     (
-                        Utf8PathBuf::from(format!("/path/to/{}", obj)),
+                        Utf8PathBuf::from(format!("/path/to/{obj}")),
                         obj.to_string(),
                     )
                 })
@@ -1356,7 +1356,7 @@ mod test {
                 RcStr::from(checksum.as_str()),
                 (
                     1000,
-                    vec![Utf8PathBuf::from(format!("/path/to/{}", checksum))],
+                    vec![Utf8PathBuf::from(format!("/path/to/{checksum}"))],
                 ),
             );
             chunking.remainder.size += 1000;
@@ -1394,8 +1394,7 @@ mod test {
         for obj in &pkg1_objects {
             assert!(
                 specific_component_1_layer.content.contains_key(*obj),
-                "Specific component 1 layer should contain {}",
-                obj
+                "Specific component 1 layer should contain {obj}"
             );
         }
 
@@ -1407,8 +1406,7 @@ mod test {
         for obj in &pkg2_objects {
             assert!(
                 specific_component_2_layer.content.contains_key(*obj),
-                "Specific component 2 layer should contain {}",
-                obj
+                "Specific component 2 layer should contain {obj}"
             );
         }
 
@@ -1434,8 +1432,7 @@ mod test {
             for obj in pkg1_objects.iter().chain(&pkg2_objects) {
                 assert!(
                     !regular_layer.content.contains_key(*obj),
-                    "Regular package layer should NOT contain specific component object {}",
-                    obj
+                    "Regular package layer should NOT contain specific component object {obj}"
                 );
             }
         }
@@ -1455,8 +1452,7 @@ mod test {
         {
             assert!(
                 found_regular_objects.contains(*obj),
-                "Regular package object {} should be in some regular layer",
-                obj
+                "Regular package object {obj} should be in some regular layer"
             );
         }
 

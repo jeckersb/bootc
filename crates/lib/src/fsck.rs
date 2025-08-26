@@ -213,7 +213,6 @@ async fn verity_state_of_all_objects(
             .map_err(|_| anyhow::anyhow!("Invalid UTF-8"))?;
 
         let objdir = ent.open_dir()?;
-        let expected = expected.clone();
         joinset.spawn_blocking(move || verity_state_of_objects(&objdir, name.as_str(), expected));
     }
 

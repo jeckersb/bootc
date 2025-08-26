@@ -297,7 +297,7 @@ impl std::fmt::Display for OstreeImageReference {
                 }
             }
             (sigverify, imgref) => {
-                write!(f, "{}:{}", sigverify, imgref)
+                write!(f, "{sigverify}:{imgref}")
             }
         }
     }
@@ -524,7 +524,7 @@ mod tests {
 
         for &v in INVALID_IRS {
             if ImageReference::try_from(v).is_ok() {
-                panic!("Should fail to parse: {}", v)
+                panic!("Should fail to parse: {v}")
             }
         }
         struct Case {

@@ -61,7 +61,7 @@ impl FromStr for GroupReference {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let r = if s.starts_with('/') {
             Self::Path(s.to_owned())
-        } else if s.chars().all(|c| matches!(c, '0'..='9')) {
+        } else if s.chars().all(|c| c.is_ascii_digit()) {
             Self::Numeric(u32::from_str(s)?)
         } else {
             Self::Name(s.to_owned())
@@ -129,15 +129,11 @@ impl SysusersEntry {
         let s = s.trim_start();
         let (first, rest) = match s.strip_prefix('"') {
             None => {
-                let idx = s
-                    .find(|c: char| c.is_whitespace())
-                    .unwrap_or(s.as_bytes().len());
+                let idx = s.find(|c: char| c.is_whitespace()).unwrap_or(s.len());
                 s.split_at(idx)
             }
             Some(rest) => {
-                let Some(end) = rest.find(|c: char| c == '"') else {
-                    return None;
-                };
+                let end = rest.find('"')?;
                 (&rest[..end], &rest[end + 1..])
             }
         };
@@ -164,10 +160,10 @@ impl SysusersEntry {
 
     pub(crate) fn parse(s: &str) -> Result<Option<SysusersEntry>> {
         let err = || Error::ParseFailure(s.to_owned());
-        let (ftype, s) = Self::next_token(s).ok_or_else(err.clone())?;
+        let (ftype, s) = Self::next_token(s).ok_or_else(err)?;
         let r = match ftype {
             "u" | "u!" => {
-                let (name, s) = Self::next_token_owned(s).ok_or_else(err.clone())?;
+                let (name, s) = Self::next_token_owned(s).ok_or_else(err)?;
                 let (id, s) = Self::next_optional_token(s).unwrap_or_default();
                 let (uid, pgid) = id
                     .and_then(|v| v.split_once(':'))
@@ -194,15 +190,15 @@ impl SysusersEntry {
                 }
             }
             "g" => {
-                let (name, s) = Self::next_token_owned(s).ok_or_else(err.clone())?;
+                let (name, s) = Self::next_token_owned(s).ok_or_else(err)?;
                 let (id, _) = Self::next_optional_token(s).unwrap_or_default();
                 let id = id.map(|id| id.parse()).transpose().map_err(|_| err())?;
                 SysusersEntry::Group { name, id }
             }
             "r" => {
-                let (_, s) = Self::next_optional_token(s).ok_or_else(err.clone())?;
-                let (range, _) = Self::next_token(s).ok_or_else(err.clone())?;
-                let (start, end) = range.split_once('-').ok_or_else(err.clone())?;
+                let (_, s) = Self::next_optional_token(s).ok_or_else(err)?;
+                let (range, _) = Self::next_token(s).ok_or_else(err)?;
+                let (start, end) = range.split_once('-').ok_or_else(err)?;
                 let start: u32 = start.parse().map_err(|_| err())?;
                 let end: u32 = end.parse().map_err(|_| err())?;
                 SysusersEntry::Range { start, end }

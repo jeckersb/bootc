@@ -126,6 +126,7 @@ fn parse_object_entry_path(path: &Utf8Path) -> Result<(&str, &Utf8Path, &str)> {
         .parent()
         .and_then(|p| p.file_name())
         .ok_or_else(|| anyhow!("Invalid path (no parent) {}", path))?;
+    #[allow(clippy::needless_as_bytes)]
     if !(parentname.is_ascii() && parentname.as_bytes().len() == 2) {
         return Err(anyhow!("Invalid checksum parent {}", parentname));
     }
@@ -147,10 +148,11 @@ fn parse_checksum(parent: &str, name: &Utf8Path) -> Result<String> {
     // Also take care of the double extension on `.file.xattrs`.
     let checksum_rest = checksum_rest.trim_end_matches(".file");
 
+    #[allow(clippy::needless_as_bytes)]
     if !(checksum_rest.is_ascii() && checksum_rest.as_bytes().len() == 62) {
         return Err(anyhow!("Invalid checksum part {}", checksum_rest));
     }
-    let reassembled = format!("{}{}", parent, checksum_rest);
+    let reassembled = format!("{parent}{checksum_rest}");
     validate_sha256(reassembled)
 }
 
@@ -864,11 +866,11 @@ mod tests {
     #[test]
     fn test_parse_metadata_entry() {
         let c = "a8/6d80a3e9ff77c2e3144c787b7769b300f91ffd770221aac27bab854960b964";
-        let invalid = format!("{}.blah", c);
+        let invalid = format!("{c}.blah");
         for &k in &["", "42", c, &invalid] {
             assert!(Importer::parse_metadata_entry(k.into()).is_err())
         }
-        let valid = format!("{}.commit", c);
+        let valid = format!("{c}.commit");
         let r = Importer::parse_metadata_entry(valid.as_str().into()).unwrap();
         assert_eq!(r.0, c.replace('/', ""));
         assert_eq!(r.1, ostree::ObjectType::Commit);
