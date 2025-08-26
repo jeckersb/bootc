@@ -54,7 +54,7 @@ pub(crate) fn parse_passwd_content(content: impl BufRead) -> Result<Vec<PasswdEn
     let mut passwds = vec![];
     for (line_num, line) in content.lines().enumerate() {
         let input =
-            line.with_context(|| format!("failed to read passwd entry at line {}", line_num))?;
+            line.with_context(|| format!("failed to read passwd entry at line {line_num}"))?;
 
         // Skip empty and comment lines
         if input.is_empty() || input.starts_with('#') {

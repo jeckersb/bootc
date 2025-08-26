@@ -40,7 +40,7 @@ fn u32_or_none(value: &str) -> Result<Option<u32>, std::num::ParseIntError> {
 
 fn number_or_empty(value: Option<u32>) -> String {
     if let Some(number) = value {
-        format!("{}", number)
+        format!("{number}")
     } else {
         "".to_string()
     }
