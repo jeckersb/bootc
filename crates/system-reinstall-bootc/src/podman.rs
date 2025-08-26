@@ -112,14 +112,14 @@ pub(crate) fn pull_if_not_present(image: &str) -> Result<()> {
     let result = image_exists_command(image).status()?;
 
     if result.success() {
-        println!("Image {} is already present locally, skipping pull.", image);
+        println!("Image {image} is already present locally, skipping pull.");
         return Ok(());
     } else {
-        println!("Image {} is not present locally, pulling it now.", image);
+        println!("Image {image} is not present locally, pulling it now.");
         println!();
         pull_image_command(image)
             .run_inherited_with_cmd_context()
-            .context(format!("pulling image {}", image))?;
+            .context(format!("pulling image {image}"))?;
     }
 
     Ok(())
