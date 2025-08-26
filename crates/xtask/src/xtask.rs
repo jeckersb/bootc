@@ -374,7 +374,7 @@ fn update_spec(sh: &Shell) -> Result<Utf8PathBuf> {
             } else if line.starts_with("Source1") {
                 writeln!(o, "Source1: {src_vendorpath}")?;
             } else {
-                writeln!(o, "{}", line)?;
+                writeln!(o, "{line}")?;
             }
         }
     }
@@ -419,7 +419,7 @@ fn impl_srpm(sh: &Shell) -> Result<Utf8PathBuf> {
                 writeln!(o, "# Replaced by cargo xtask package-srpm")?;
                 writeln!(o, "Version: {v}")?;
             } else {
-                writeln!(o, "{}", line)?;
+                writeln!(o, "{line}")?;
             }
         }
     }
