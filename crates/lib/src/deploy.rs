@@ -138,10 +138,10 @@ fn prefix_of_progress(p: &ImportProgress) -> &'static str {
     }
 }
 
-/// Write container fetch progress to standard output.
-async fn handle_layer_progress_print(
-    mut layers: tokio::sync::mpsc::Receiver<ostree_container::store::ImportProgress>,
-    mut layer_bytes: tokio::sync::watch::Receiver<Option<ostree_container::store::LayerProgress>>,
+/// Configuration for layer progress printing
+struct LayerProgressConfig {
+    layers: tokio::sync::mpsc::Receiver<ostree_container::store::ImportProgress>,
+    layer_bytes: tokio::sync::watch::Receiver<Option<ostree_container::store::LayerProgress>>,
     digest: Box<str>,
     n_layers_to_fetch: usize,
     layers_total: usize,
@@ -149,15 +149,18 @@ async fn handle_layer_progress_print(
     bytes_total: u64,
     prog: ProgressWriter,
     quiet: bool,
-) -> ProgressWriter {
+}
+
+/// Write container fetch progress to standard output.
+async fn handle_layer_progress_print(mut config: LayerProgressConfig) -> ProgressWriter {
     let start = std::time::Instant::now();
     let mut total_read = 0u64;
     let bar = indicatif::MultiProgress::new();
-    if quiet {
+    if config.quiet {
         bar.set_draw_target(indicatif::ProgressDrawTarget::hidden());
     }
     let layers_bar = bar.add(indicatif::ProgressBar::new(
-        n_layers_to_fetch.try_into().unwrap(),
+        config.n_layers_to_fetch.try_into().unwrap(),
     ));
     let byte_bar = bar.add(indicatif::ProgressBar::new(0));
     // let byte_bar = indicatif::ProgressBar::new(0);
@@ -185,7 +188,7 @@ async fn handle_layer_progress_print(
         tokio::select! {
             // Always handle layer changes first.
             biased;
-            layer = layers.recv() => {
+            layer = config.layers.recv() => {
                 if let Some(l) = layer {
                     let layer = descriptor_of_progress(&l);
                     let layer_type = prefix_of_progress(&l);
@@ -213,16 +216,16 @@ async fn handle_layer_progress_print(
                         // Emit an event where bytes == total to signal completion.
                         subtask.bytes = layer_size;
                         subtasks.push(subtask.clone());
-                        prog.send(Event::ProgressBytes {
+                        config.prog.send(Event::ProgressBytes {
                             task: "pulling".into(),
-                            description: format!("Pulling Image: {digest}").into(),
-                            id: (*digest).into(),
-                            bytes_cached: bytes_total - bytes_to_download,
+                            description: format!("Pulling Image: {}", config.digest).into(),
+                            id: (*config.digest).into(),
+                            bytes_cached: config.bytes_total - config.bytes_to_download,
                             bytes: total_read,
-                            bytes_total: bytes_to_download,
-                            steps_cached: (layers_total - n_layers_to_fetch) as u64,
+                            bytes_total: config.bytes_to_download,
+                            steps_cached: (config.layers_total - config.n_layers_to_fetch) as u64,
                             steps: layers_bar.position(),
-                            steps_total: n_layers_to_fetch as u64,
+                            steps_total: config.n_layers_to_fetch as u64,
                             subtasks: subtasks.clone(),
                         }).await;
                     }
@@ -231,28 +234,28 @@ async fn handle_layer_progress_print(
                     break
                 };
             },
-            r = layer_bytes.changed() => {
+            r = config.layer_bytes.changed() => {
                 if r.is_err() {
                     // If the receiver is disconnected, then we're done
                     break
                 }
                 let bytes = {
-                    let bytes = layer_bytes.borrow_and_update();
+                    let bytes = config.layer_bytes.borrow_and_update();
                     bytes.as_ref().cloned()
                 };
                 if let Some(bytes) = bytes {
                     byte_bar.set_position(bytes.fetched);
                     subtask.bytes = byte_bar.position();
-                    prog.send_lossy(Event::ProgressBytes {
+                    config.prog.send_lossy(Event::ProgressBytes {
                         task: "pulling".into(),
-                        description: format!("Pulling Image: {digest}").into(),
-                        id: (*digest).into(),
-                        bytes_cached: bytes_total - bytes_to_download,
+                        description: format!("Pulling Image: {}", config.digest).into(),
+                        id: (*config.digest).into(),
+                        bytes_cached: config.bytes_total - config.bytes_to_download,
                         bytes: total_read + byte_bar.position(),
-                        bytes_total: bytes_to_download,
-                        steps_cached: (layers_total - n_layers_to_fetch) as u64,
+                        bytes_total: config.bytes_to_download,
+                        steps_cached: (config.layers_total - config.n_layers_to_fetch) as u64,
                         steps: layers_bar.position(),
-                        steps_total: n_layers_to_fetch as u64,
+                        steps_total: config.n_layers_to_fetch as u64,
                         subtasks: subtasks.clone().into_iter().chain([subtask.clone()]).collect(),
                     }).await;
                 }
@@ -280,25 +283,27 @@ async fn handle_layer_progress_print(
     // Since the progress notifier closed, we know import has started
     // use as a heuristic to begin import progress
     // Cannot be lossy or it is dropped
-    prog.send(Event::ProgressSteps {
-        task: "importing".into(),
-        description: "Importing Image".into(),
-        id: (*digest).into(),
-        steps_cached: 0,
-        steps: 0,
-        steps_total: 1,
-        subtasks: [SubTaskStep {
-            subtask: "importing".into(),
+    config
+        .prog
+        .send(Event::ProgressSteps {
+            task: "importing".into(),
             description: "Importing Image".into(),
-            id: "importing".into(),
-            completed: false,
-        }]
-        .into(),
-    })
-    .await;
+            id: (*config.digest).into(),
+            steps_cached: 0,
+            steps: 0,
+            steps_total: 1,
+            subtasks: [SubTaskStep {
+                subtask: "importing".into(),
+                description: "Importing Image".into(),
+                id: "importing".into(),
+                completed: false,
+            }]
+            .into(),
+        })
+        .await;
 
     // Return the writer
-    prog
+    config.prog
 }
 
 /// Gather all bound images in all deployments, then prune the image store,
@@ -332,7 +337,7 @@ pub(crate) struct PreparedImportMeta {
 }
 
 pub(crate) enum PreparedPullResult {
-    Ready(PreparedImportMeta),
+    Ready(Box<PreparedImportMeta>),
     AlreadyPresent(Box<ImageState>),
 }
 
@@ -372,7 +377,7 @@ pub(crate) async fn prepare_for_pull(
         prep,
     };
 
-    Ok(PreparedPullResult::Ready(prepared_image))
+    Ok(PreparedPullResult::Ready(Box::new(prepared_image)))
 }
 
 #[context("Pulling")]
@@ -388,17 +393,17 @@ pub(crate) async fn pull_from_prepared(
     let digest_imp = prepared_image.digest.clone();
 
     let printer = tokio::task::spawn(async move {
-        handle_layer_progress_print(
-            layer_progress,
-            layer_byte_progress,
-            digest.as_ref().into(),
-            prepared_image.n_layers_to_fetch,
-            prepared_image.layers_total,
-            prepared_image.bytes_to_fetch,
-            prepared_image.bytes_total,
+        handle_layer_progress_print(LayerProgressConfig {
+            layers: layer_progress,
+            layer_bytes: layer_byte_progress,
+            digest: digest.as_ref().into(),
+            n_layers_to_fetch: prepared_image.n_layers_to_fetch,
+            layers_total: prepared_image.layers_total,
+            bytes_to_download: prepared_image.bytes_to_fetch,
+            bytes_total: prepared_image.bytes_total,
             prog,
             quiet,
-        )
+        })
         .await
     });
     let import = prepared_image.imp.import(prepared_image.prep).await;
@@ -444,7 +449,7 @@ pub(crate) async fn pull(
     match prepare_for_pull(repo, imgref, target_imgref).await? {
         PreparedPullResult::AlreadyPresent(existing) => Ok(existing),
         PreparedPullResult::Ready(prepared_image_meta) => {
-            Ok(pull_from_prepared(imgref, quiet, prog, prepared_image_meta).await?)
+            Ok(pull_from_prepared(imgref, quiet, prog, *prepared_image_meta).await?)
         }
     }
 }

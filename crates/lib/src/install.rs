@@ -760,7 +760,7 @@ async fn install_container(
         PreparedPullResult::AlreadyPresent(existing) => existing,
         PreparedPullResult::Ready(image_meta) => {
             check_disk_space(root_setup.physical_root.as_fd(), &image_meta, &spec_imgref)?;
-            pull_from_prepared(&spec_imgref, false, ProgressWriter::default(), image_meta).await?
+            pull_from_prepared(&spec_imgref, false, ProgressWriter::default(), *image_meta).await?
         }
     };
 

@@ -98,10 +98,8 @@ fn canonicalize_reference(reference: Reference) -> Option<Reference> {
     reference.tag()?;
 
     // No digest? Also pass through.
-    let Some(digest) = reference.digest() else {
-        return None;
-    };
-
+    let digest = reference.digest()?;
+    // Otherwise, replace with the digest
     Some(reference.clone_with_digest(digest.to_owned()))
 }
 
