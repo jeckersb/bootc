@@ -87,7 +87,7 @@ test-tmt:
 # set of default rustc warnings.
 # We intentionally don't gate on this for local builds in cargo.toml
 # because it impedes iteration speed.
-CLIPPY_CONFIG = -A clippy::all -D clippy::correctness -D clippy::suspicious -Dunused_imports -Ddead_code
+CLIPPY_CONFIG = -A clippy::all -D clippy::correctness -D clippy::suspicious -D clippy::disallowed-methods -Dunused_imports -Ddead_code
 validate-rust:
 	cargo fmt -- --check -l
 	cargo test --no-run

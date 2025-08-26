@@ -263,14 +263,16 @@ pub fn var_to_tmpfiles<U: uzers::Users, G: uzers::Groups>(
     let mut prefix = PathBuf::from("/var");
     let mut unsupported = Vec::new();
     convert_path_to_tmpfiles_d_recurse(
+        &TmpfilesConvertConfig {
+            users,
+            groups,
+            rootfs,
+            existing: &existing_tmpfiles,
+            readonly: false,
+        },
         &mut entries,
         &mut unsupported,
-        users,
-        groups,
-        rootfs,
-        &existing_tmpfiles,
         &mut prefix,
-        false,
     )?;
 
     // If there's no entries, don't write a file
@@ -309,6 +311,15 @@ pub fn var_to_tmpfiles<U: uzers::Users, G: uzers::Groups>(
     })
 }
 
+/// Configuration for recursive tmpfiles conversion
+struct TmpfilesConvertConfig<'a, U: uzers::Users, G: uzers::Groups> {
+    users: &'a U,
+    groups: &'a G,
+    rootfs: &'a Dir,
+    existing: &'a BTreeMap<PathBuf, String>,
+    readonly: bool,
+}
+
 /// Recursively explore target directory and translate content to tmpfiles.d entries. See
 /// `convert_var_to_tmpfiles_d` for more background.
 ///
@@ -316,37 +327,34 @@ pub fn var_to_tmpfiles<U: uzers::Users, G: uzers::Groups>(
 /// `prefix` is updated at each recursive step, so that in case of errors it can be
 /// used to pinpoint the faulty path.
 fn convert_path_to_tmpfiles_d_recurse<U: uzers::Users, G: uzers::Groups>(
+    config: &TmpfilesConvertConfig<'_, U, G>,
     out_entries: &mut BTreeSet<String>,
     out_unsupported: &mut Vec<PathBuf>,
-    users: &U,
-    groups: &G,
-    rootfs: &Dir,
-    existing: &BTreeMap<PathBuf, String>,
     prefix: &mut PathBuf,
-    readonly: bool,
 ) -> Result<()> {
     let relpath = prefix.strip_prefix("/").unwrap();
-    for subpath in rootfs.read_dir(relpath)? {
+    for subpath in config.rootfs.read_dir(relpath)? {
         let subpath = subpath?;
         let meta = subpath.metadata()?;
         let fname = subpath.file_name();
         prefix.push(fname);
 
-        let has_tmpfiles_entry = existing.contains_key(prefix);
+        let has_tmpfiles_entry = config.existing.contains_key(prefix);
 
         // Translate this file entry.
         if !has_tmpfiles_entry {
             let entry = {
                 // SAFETY: We know this path is absolute
                 let relpath = prefix.strip_prefix("/").unwrap();
-                let Some(tmpfiles_meta) = FileMeta::from_fs(rootfs, &relpath)? else {
+                let Some(tmpfiles_meta) = FileMeta::from_fs(config.rootfs, &relpath)? else {
                     out_unsupported.push(relpath.into());
                     assert!(prefix.pop());
                     continue;
                 };
                 let uid = meta.uid();
                 let gid = meta.gid();
-                let user = users
+                let user = config
+                    .users
                     .get_user_by_uid(meta.uid())
                     .ok_or(Error::UserNotFound(uid))?;
                 let username = user.name();
@@ -354,7 +362,8 @@ fn convert_path_to_tmpfiles_d_recurse<U: uzers::Users, G: uzers::Groups>(
                     uid,
                     name: username.to_string_lossy().into_owned(),
                 })?;
-                let group = groups
+                let group = config
+                    .groups
                     .get_group_by_gid(gid)
                     .ok_or(Error::GroupNotFound(gid))?;
                 let groupname = group.name();
@@ -371,27 +380,18 @@ fn convert_path_to_tmpfiles_d_recurse<U: uzers::Users, G: uzers::Groups>(
             // SAFETY: We know this path is absolute
             let relpath = prefix.strip_prefix("/").unwrap();
             // Avoid traversing mount points by default
-            if rootfs.open_dir_noxdev(relpath)?.is_some() {
-                convert_path_to_tmpfiles_d_recurse(
-                    out_entries,
-                    out_unsupported,
-                    users,
-                    groups,
-                    rootfs,
-                    existing,
-                    prefix,
-                    readonly,
-                )?;
+            if config.rootfs.open_dir_noxdev(relpath)?.is_some() {
+                convert_path_to_tmpfiles_d_recurse(config, out_entries, out_unsupported, prefix)?;
                 let relpath = prefix.strip_prefix("/").unwrap();
-                if !readonly {
-                    rootfs.remove_dir_all(relpath)?;
+                if !config.readonly {
+                    config.rootfs.remove_dir_all(relpath)?;
                 }
             }
         } else {
             // SAFETY: We know this path is absolute
             let relpath = prefix.strip_prefix("/").unwrap();
-            if !readonly {
-                rootfs.remove_file(relpath)?;
+            if !config.readonly {
+                config.rootfs.remove_file(relpath)?;
             }
         }
         assert!(prefix.pop());
@@ -435,14 +435,16 @@ pub fn find_missing_tmpfiles_current_root() -> Result<TmpfilesResult> {
     let mut tmpfiles = BTreeSet::new();
     let mut unsupported = Vec::new();
     convert_path_to_tmpfiles_d_recurse(
+        &TmpfilesConvertConfig {
+            users: &usergroups,
+            groups: &usergroups,
+            rootfs: &rootfs,
+            existing: &existing_tmpfiles,
+            readonly: true,
+        },
         &mut tmpfiles,
         &mut unsupported,
-        &usergroups,
-        &usergroups,
-        &rootfs,
-        &existing_tmpfiles,
         &mut prefix,
-        true,
     )?;
     Ok(TmpfilesResult {
         tmpfiles,

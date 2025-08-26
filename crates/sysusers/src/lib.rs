@@ -128,10 +128,10 @@ impl SysusersEntry {
     fn next_token(s: &str) -> Option<(&str, &str)> {
         let s = s.trim_start();
         let (first, rest) = match s.strip_prefix('"') {
-            None => {
-                let idx = s.find(|c: char| c.is_whitespace()).unwrap_or(s.len());
-                s.split_at(idx)
-            }
+            None => match s.find(|c: char| c.is_whitespace()) {
+                Some(idx) => s.split_at(idx),
+                None => (s, ""),
+            },
             Some(rest) => {
                 let end = rest.find('"')?;
                 (&rest[..end], &rest[end + 1..])
