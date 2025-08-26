@@ -201,7 +201,7 @@ async fn handle_layer_progress_print(
                         subtask = SubTaskBytes {
                             subtask: layer_type.into(),
                             description: format!("{layer_type}: {short_digest}").clone().into(),
-                            id: format!("{short_digest}").clone().into(),
+                            id: short_digest.to_string().clone().into(),
                             bytes_cached: 0,
                             bytes: 0,
                             bytes_total: layer_size,

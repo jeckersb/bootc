@@ -155,10 +155,10 @@ impl Lint {
         f: LintFn,
     ) -> Self {
         Lint {
-            name: name,
+            name,
             ty: LintType::Fatal,
             f: LintFnTy::Regular(f),
-            description: description,
+            description,
             root_type: None,
         }
     }
@@ -169,10 +169,10 @@ impl Lint {
         f: LintFn,
     ) -> Self {
         Lint {
-            name: name,
+            name,
             ty: LintType::Warning,
             f: LintFnTy::Regular(f),
-            description: description,
+            description,
             root_type: None,
         }
     }
@@ -290,7 +290,7 @@ fn lint_inner<'skip>(
         results.push((lint, f(&root, &config)));
     }
 
-    let mut recursive_lints = BTreeSet::from_iter(recursive_lints.into_iter());
+    let mut recursive_lints = BTreeSet::from_iter(recursive_lints);
     let mut recursive_errors = BTreeMap::new();
     root.walk(
         &WalkConfiguration::default()
@@ -327,7 +327,7 @@ fn lint_inner<'skip>(
         },
     )?;
     // Extend our overall result set with the recursive-lint errors.
-    results.extend(recursive_errors.into_iter().map(|(lint, e)| (lint, e)));
+    results.extend(recursive_errors);
     // Any recursive lint still in this list succeeded.
     results.extend(recursive_lints.into_iter().map(|lint| (lint, lint_ok())));
     for (lint, r) in results {
@@ -511,7 +511,7 @@ fn check_utf8(e: &WalkComponent, _config: &LintExecutionConfig) -> LintRecursive
 
     if e.file_type.is_symlink() {
         let target = e.dir.read_link_contents(filename)?;
-        if !target.to_str().is_some() {
+        if target.to_str().is_none() {
             return lint_err(format!(
                 "{}: Found non-utf8 symlink target",
                 PathQuotedDisplay::new(&path)
@@ -754,7 +754,7 @@ Any content here in the container image will be masked at runtime.
 );
 fn check_boot(root: &Dir, config: &LintExecutionConfig) -> LintResult {
     let Some(d) = root.open_dir_optional("boot")? else {
-        return lint_err(format!("Missing /boot directory"));
+        return lint_err("Missing /boot directory");
     };
 
     // First collect all entries to determine if the directory is empty
@@ -1161,7 +1161,7 @@ mod tests {
         output_str.clear();
 
         // Test case 2: Iterator with one item
-        let items_one = vec!["item1"];
+        let items_one = ["item1"];
         format_items(&config, header, items_one.iter(), &mut output_str)?;
         assert_eq!(output_str, "Test Header:\n  item1\n");
         output_str.clear();
@@ -1194,7 +1194,7 @@ mod tests {
         output_str.clear();
 
         // Test case 2: Iterator with fewer items than DEFAULT_TRUNCATED_OUTPUT
-        let items_few = vec!["item1", "item2"];
+        let items_few = ["item1", "item2"];
         format_items(&config, header, items_few.iter(), &mut output_str)?;
         assert_eq!(output_str, "Test Header:\n  item1\n  item2\n");
         output_str.clear();
@@ -1246,7 +1246,7 @@ mod tests {
         let header = "Numbers";
         let mut output_str = String::new();
 
-        let items_numbers = vec![1, 2, 3];
+        let items_numbers = [1, 2, 3];
         format_items(&config, header, items_numbers.iter(), &mut output_str)?;
         similar_asserts::assert_eq!(output_str, "Numbers:\n  1\n  2\n  3\n");
 

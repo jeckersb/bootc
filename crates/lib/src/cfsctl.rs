@@ -148,10 +148,7 @@ enum Command {
 }
 
 fn verity_opt(opt: &Option<String>) -> Result<Option<Sha512HashValue>> {
-    Ok(opt
-        .as_ref()
-        .map(|value| FsVerityHashValue::from_hex(value))
-        .transpose()?)
+    Ok(opt.as_ref().map(FsVerityHashValue::from_hex).transpose()?)
 }
 
 pub(crate) async fn run_from_iter<I>(system_store: &crate::store::Storage, args: I) -> Result<()>

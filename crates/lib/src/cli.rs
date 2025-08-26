@@ -921,17 +921,9 @@ async fn upgrade(opts: UpgradeOpts) -> Result<()> {
 
     // If there's no specified image, let's be nice and check if the booted system is using rpm-ostree
     if imgref.is_none() {
-        let booted_incompatible = host
-            .status
-            .booted
-            .as_ref()
-            .map_or(false, |b| b.incompatible);
+        let booted_incompatible = host.status.booted.as_ref().is_some_and(|b| b.incompatible);
 
-        let staged_incompatible = host
-            .status
-            .staged
-            .as_ref()
-            .map_or(false, |b| b.incompatible);
+        let staged_incompatible = host.status.staged.as_ref().is_some_and(|b| b.incompatible);
 
         if booted_incompatible || staged_incompatible {
             return Err(anyhow::anyhow!(

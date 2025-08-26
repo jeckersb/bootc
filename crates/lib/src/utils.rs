@@ -160,7 +160,7 @@ where
     // We need to handle the case where we aren't connected to
     // a tty, so indicatif would show nothing by default.
     if pb.is_hidden() {
-        print!("{}...", msg);
+        print!("{msg}...");
         std::io::stdout().flush().unwrap();
     }
     let r = f.await;

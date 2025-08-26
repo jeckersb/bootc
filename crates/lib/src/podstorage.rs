@@ -122,7 +122,7 @@ fn bind_storage_roots(cmd: &mut Command, storage_root: &Dir, run_root: &Dir) -> 
 fn new_podman_cmd_in(storage_root: &Dir, run_root: &Dir) -> Result<Command> {
     let mut cmd = Command::new("podman");
     bind_storage_roots(&mut cmd, storage_root, run_root)?;
-    let run_root = format!("/proc/self/fd/{}", STORAGE_RUN_FD);
+    let run_root = format!("/proc/self/fd/{STORAGE_RUN_FD}");
     cmd.args(["--root", STORAGE_ALIAS_DIR, "--runroot", run_root.as_str()]);
     Ok(cmd)
 }
@@ -288,7 +288,6 @@ impl CStorage {
             Ok(r)
         })
         .await?
-        .map_err(Into::into)
     }
 
     #[context("Pruning")]
