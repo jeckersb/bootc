@@ -34,7 +34,6 @@ mod docgen;
 mod bootloader;
 mod containerenv;
 mod install;
-mod kernel_cmdline;
 
 #[cfg(feature = "composefs-backend")]
 #[allow(dead_code)]

@@ -56,13 +56,13 @@ use self::baseline::InstallBlockDeviceOpts;
 use crate::boundimage::{BoundImage, ResolvedBoundImage};
 use crate::containerenv::ContainerExecutionInfo;
 use crate::deploy::{prepare_for_pull, pull_from_prepared, PreparedImportMeta, PreparedPullResult};
-use crate::kernel_cmdline::Cmdline;
 use crate::lsm;
 use crate::progress_jsonl::ProgressWriter;
 use crate::spec::ImageReference;
 use crate::store::Storage;
 use crate::task::Task;
 use crate::utils::sigpolicy_from_opt;
+use bootc_kernel_cmdline::Cmdline;
 use bootc_mount::Filesystem;
 
 /// The toplevel boot directory
@@ -1639,9 +1639,9 @@ fn find_root_args_to_inherit(cmdline: &Cmdline, root_info: &Filesystem) -> Resul
         .context("Parsing root= karg")?;
     // If we have a root= karg, then use that
     let (mount_spec, kargs) = if let Some(root) = root {
-        let rootflags = cmdline.find_str(crate::kernel_cmdline::ROOTFLAGS);
+        let rootflags = cmdline.find_str(bootc_kernel_cmdline::ROOTFLAGS);
         let inherit_kargs =
-            cmdline.find_all_starting_with_str(crate::kernel_cmdline::INITRD_ARG_PREFIX);
+            cmdline.find_all_starting_with_str(bootc_kernel_cmdline::INITRD_ARG_PREFIX);
         (
             root.to_owned(),
             rootflags
