@@ -22,11 +22,10 @@ where
     let mut items = Vec::with_capacity(max.get());
 
     let mut it = it.peekable();
-    if it.peek().is_none() {
-        return None;
-    }
+    // If there's nothing, just return
+    let _ = it.peek()?;
 
-    while let Some(next) = it.next() {
+    for next in it.by_ref() {
         items.push(next);
 
         // If we've reached max items, stop collecting

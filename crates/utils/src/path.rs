@@ -31,7 +31,7 @@ impl<'a> Display for PathQuotedDisplay<'a> {
             return f.write_str(&s);
         }
         // Should not happen really
-        return Err(std::fmt::Error);
+        Err(std::fmt::Error)
     }
 }
 
