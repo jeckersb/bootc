@@ -8,16 +8,17 @@ use std::borrow::Cow;
 use anyhow::Result;
 
 /// This is used by dracut.
-pub(crate) const INITRD_ARG_PREFIX: &str = "rd.";
+pub const INITRD_ARG_PREFIX: &str = "rd.";
 /// The kernel argument for configuring the rootfs flags.
-pub(crate) const ROOTFLAGS: &str = "rootflags";
+pub const ROOTFLAGS: &str = "rootflags";
 
 /// A parsed kernel command line.
 ///
 /// Wraps the raw command line bytes and provides methods for parsing and iterating
 /// over individual parameters. Uses copy-on-write semantics to avoid unnecessary
 /// allocations when working with borrowed data.
-pub(crate) struct Cmdline<'a>(Cow<'a, [u8]>);
+#[derive(Debug)]
+pub struct Cmdline<'a>(Cow<'a, [u8]>);
 
 impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Cmdline<'a> {
     /// Creates a new `Cmdline` from any type that can be referenced as bytes.
@@ -128,7 +129,7 @@ impl<'a> Cmdline<'a> {
 ///
 /// Handles quoted values and treats dashes and underscores in keys as equivalent.
 #[derive(Debug, Eq)]
-pub(crate) struct ParameterKey<'a>(&'a [u8]);
+pub struct ParameterKey<'a>(&'a [u8]);
 
 impl<'a> std::ops::Deref for ParameterKey<'a> {
     type Target = [u8];
@@ -148,7 +149,7 @@ impl<'a> From<&'a [u8]> for ParameterKey<'a> {
 ///
 /// Otherwise the same as [`ParameterKey`].
 #[derive(Debug, Eq)]
-pub(crate) struct ParameterKeyStr<'a>(&'a str);
+pub struct ParameterKeyStr<'a>(&'a str);
 
 impl<'a> From<&'a str> for ParameterKeyStr<'a> {
     fn from(value: &'a str) -> Self {
@@ -158,7 +159,7 @@ impl<'a> From<&'a str> for ParameterKeyStr<'a> {
 
 /// A single kernel command line parameter.
 #[derive(Debug, Eq)]
-pub(crate) struct Parameter<'a> {
+pub struct Parameter<'a> {
     /// The full original value
     pub parameter: &'a [u8],
     /// The parameter key as raw bytes
@@ -169,7 +170,7 @@ pub(crate) struct Parameter<'a> {
 
 /// A single kernel command line parameter.
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct ParameterStr<'a> {
+pub struct ParameterStr<'a> {
     /// The original value
     pub parameter: &'a str,
     /// The parameter key
@@ -179,6 +180,9 @@ pub(crate) struct ParameterStr<'a> {
 }
 
 impl<'a> Parameter<'a> {
+    /// Convert this parameter to a UTF-8 string parameter, if possible.
+    ///
+    /// Returns `None` if the parameter contains invalid UTF-8.
     pub fn to_str(&self) -> Option<ParameterStr<'a>> {
         let Ok(parameter) = std::str::from_utf8(self.parameter) else {
             return None;

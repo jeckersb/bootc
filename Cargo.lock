@@ -237,6 +237,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bootc-kernel-cmdline"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "similar-asserts",
+ "static_assertions",
+]
+
+[[package]]
 name = "bootc-lib"
 version = "1.7.1"
 dependencies = [
@@ -245,6 +254,7 @@ dependencies = [
  "anyhow",
  "bootc-internal-blockdev",
  "bootc-internal-utils",
+ "bootc-kernel-cmdline",
  "bootc-mount",
  "bootc-sysusers",
  "bootc-tmpfiles",
