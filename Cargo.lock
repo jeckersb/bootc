@@ -581,7 +581,7 @@ checksum = "55b672471b4e9f9e95499ea597ff64941a309b2cdbffcc46f2cc5e2d971fd335"
 [[package]]
 name = "composefs"
 version = "0.3.0"
-source = "git+https://github.com/containers/composefs-rs?rev=8d1e570275621531d39b8f01681584bcc85ce01c#8d1e570275621531d39b8f01681584bcc85ce01c"
+source = "git+https://github.com/containers/composefs-rs?rev=ce28ee8a7b43290941d208c8ca820150a6504d5a#ce28ee8a7b43290941d208c8ca820150a6504d5a"
 dependencies = [
  "anyhow",
  "hex",
@@ -601,7 +601,7 @@ dependencies = [
 [[package]]
 name = "composefs-boot"
 version = "0.3.0"
-source = "git+https://github.com/containers/composefs-rs?rev=8d1e570275621531d39b8f01681584bcc85ce01c#8d1e570275621531d39b8f01681584bcc85ce01c"
+source = "git+https://github.com/containers/composefs-rs?rev=ce28ee8a7b43290941d208c8ca820150a6504d5a#ce28ee8a7b43290941d208c8ca820150a6504d5a"
 dependencies = [
  "anyhow",
  "composefs",
@@ -614,7 +614,7 @@ dependencies = [
 [[package]]
 name = "composefs-oci"
 version = "0.3.0"
-source = "git+https://github.com/containers/composefs-rs?rev=8d1e570275621531d39b8f01681584bcc85ce01c#8d1e570275621531d39b8f01681584bcc85ce01c"
+source = "git+https://github.com/containers/composefs-rs?rev=ce28ee8a7b43290941d208c8ca820150a6504d5a#ce28ee8a7b43290941d208c8ca820150a6504d5a"
 dependencies = [
  "anyhow",
  "async-compression",
