@@ -106,7 +106,6 @@ impl<'a> Cmdline<'a> {
     /// Find the value of the kernel argument with the provided name, which must be present.
     ///
     /// Otherwise the same as [`Self::value_of`].
-    #[cfg(test)]
     pub fn require_value_of(&'a self, key: impl AsRef<[u8]>) -> Result<&'a [u8]> {
         let key = key.as_ref();
         self.value_of(key).ok_or_else(|| {
@@ -115,10 +114,10 @@ impl<'a> Cmdline<'a> {
         })
     }
 
-    /// Find the value of the kernel argument with the provided name, which must be present.
+    /// Find the UTF-8 value of the kernel argument with the provided
+    /// name, which must be present.
     ///
-    /// Otherwise the same as [`Self::value_of`].
-    #[cfg(test)]
+    /// Otherwise the same as [`Self::value_of_utf8`].
     pub fn require_value_of_utf8(&'a self, key: &str) -> Result<&'a str> {
         self.value_of_utf8(key)?
             .ok_or_else(|| anyhow::anyhow!("Failed to find kernel argument '{key}'"))
