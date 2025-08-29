@@ -17,16 +17,19 @@ use rustix::{
         fsconfig_create, fsconfig_set_string, fsmount, open_tree, unmount, FsMountFlags,
         MountAttrFlags, OpenTreeFlags, UnmountFlags,
     },
+    path,
 };
 use serde::Deserialize;
 
 use composefs::{
     fsverity::{FsVerityHashValue, Sha256HashValue},
-    mount::{mount_at, FsHandle},
+    mount::FsHandle,
     mountcompat::{overlayfs_set_fd, overlayfs_set_lower_and_data_fds, prepare_mount},
     repository::Repository,
 };
 use composefs_boot::cmdline::get_cmdline_composefs;
+
+use fn_error_context::context;
 
 // Config file
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -100,39 +103,51 @@ pub struct Args {
 }
 
 // Helpers
-fn open_dir(dirfd: impl AsFd, name: impl AsRef<Path> + Debug) -> rustix::io::Result<OwnedFd> {
-    openat(
+fn mount_at_wrapper(
+    fs_fd: impl AsFd,
+    dirfd: impl AsFd,
+    path: impl path::Arg + Debug + Clone,
+) -> Result<()> {
+    composefs::mount::mount_at(fs_fd, dirfd, path.clone())
+        .with_context(|| format!("Mounting at path {path:?}"))
+}
+
+#[context("Opening dir {name:?}")]
+fn open_dir(dirfd: impl AsFd, name: impl AsRef<Path> + Debug) -> Result<OwnedFd> {
+    let res = openat(
         dirfd,
         name.as_ref(),
         OFlags::PATH | OFlags::DIRECTORY | OFlags::CLOEXEC,
         Mode::empty(),
-    )
-    .inspect_err(|_| {
-        eprintln!("Failed to open dir {name:?}");
-    })
+    );
+
+    Ok(res?)
 }
 
-fn ensure_dir(dirfd: impl AsFd, name: &str) -> rustix::io::Result<OwnedFd> {
+#[context("Ensure dir")]
+fn ensure_dir(dirfd: impl AsFd, name: &str) -> Result<OwnedFd> {
     match mkdirat(dirfd.as_fd(), name, 0o700.into()) {
         Ok(()) | Err(Errno::EXIST) => {}
-        Err(err) => Err(err)?,
+        Err(err) => Err(err).with_context(|| format!("Creating dir {name}"))?,
     }
+
     open_dir(dirfd, name)
 }
 
-fn bind_mount(fd: impl AsFd, path: &str) -> rustix::io::Result<OwnedFd> {
-    open_tree(
+#[context("Bind mounting to path {path}")]
+fn bind_mount(fd: impl AsFd, path: &str) -> Result<OwnedFd> {
+    let res = open_tree(
         fd.as_fd(),
         path,
         OpenTreeFlags::OPEN_TREE_CLONE
             | OpenTreeFlags::OPEN_TREE_CLOEXEC
             | OpenTreeFlags::AT_EMPTY_PATH,
-    )
-    .inspect_err(|_| {
-        eprintln!("Open tree failed for {path}");
-    })
+    );
+
+    Ok(res?)
 }
 
+#[context("Mounting tmpfs")]
 fn mount_tmpfs() -> Result<OwnedFd> {
     let tmpfs = FsHandle::open("tmpfs")?;
     fsconfig_create(tmpfs.as_fd())?;
@@ -143,6 +158,7 @@ fn mount_tmpfs() -> Result<OwnedFd> {
     )?)
 }
 
+#[context("Mounting state as overlay")]
 fn overlay_state(base: impl AsFd, state: impl AsFd, source: &str) -> Result<()> {
     let upper = ensure_dir(state.as_fd(), "upper")?;
     let work = ensure_dir(state.as_fd(), "work")?;
@@ -159,13 +175,14 @@ fn overlay_state(base: impl AsFd, state: impl AsFd, source: &str) -> Result<()> 
         MountAttrFlags::empty(),
     )?;
 
-    Ok(mount_at(fs, base, ".")?)
+    mount_at_wrapper(fs, base, ".").context("Moving mount")
 }
 
 fn overlay_transient(base: impl AsFd) -> Result<()> {
     overlay_state(base, prepare_mount(mount_tmpfs()?)?, "transient")
 }
 
+#[context("Opening rootfs")]
 fn open_root_fs(path: &Path) -> Result<OwnedFd> {
     let rootfs = open_tree(
         CWD,
@@ -185,12 +202,14 @@ fn open_root_fs(path: &Path) -> Result<OwnedFd> {
 /// * sysroot  - fd for /sysroot
 /// * name     - Name of the EROFS image to be mounted
 /// * insecure - Whether fsverity is optional or not
+#[context("Mounting composefs image")]
 pub fn mount_composefs_image(sysroot: &OwnedFd, name: &str, insecure: bool) -> Result<OwnedFd> {
     let mut repo = Repository::<Sha256HashValue>::open_path(sysroot, "composefs")?;
     repo.set_insecure(insecure);
     repo.mount(name).context("Failed to mount composefs image")
 }
 
+#[context("Mounting subdirectory")]
 fn mount_subdir(
     new_root: impl AsFd,
     state: impl AsFd,
@@ -208,7 +227,11 @@ fn mount_subdir(
 
     match mount_type {
         MountType::None => Ok(()),
-        MountType::Bind => Ok(mount_at(bind_mount(&state, subdir)?, &new_root, subdir)?),
+        MountType::Bind => Ok(mount_at_wrapper(
+            bind_mount(&state, subdir)?,
+            &new_root,
+            subdir,
+        )?),
         MountType::Overlay => overlay_state(
             open_dir(&new_root, subdir)?,
             open_dir(&state, subdir)?,
@@ -218,6 +241,7 @@ fn mount_subdir(
     }
 }
 
+#[context("GPT workaround")]
 pub(crate) fn gpt_workaround() -> Result<()> {
     // https://github.com/systemd/systemd/issues/35017
     let rootdev = stat("/dev/gpt-auto-root");
@@ -238,6 +262,7 @@ pub(crate) fn gpt_workaround() -> Result<()> {
 }
 
 /// Sets up /sysroot for switch-root
+#[context("Setting up /sysroot")]
 pub fn setup_root(args: Args) -> Result<()> {
     let config = match std::fs::read_to_string(args.config) {
         Ok(text) => toml::from_str(&text)?,
@@ -267,27 +292,27 @@ pub fn setup_root(args: Args) -> Result<()> {
     // 6.15 and later.  Before 6.15 we can't mount into a floating tree, so mount it first.  This
     // will leave an abandoned clone of the sysroot mounted under it, but that's OK for now.
     if cfg!(feature = "pre-6.15") {
-        mount_at(&new_root, CWD, &args.sysroot)?;
+        mount_at_wrapper(&new_root, CWD, &args.sysroot)?;
     }
 
     if config.root.transient {
         overlay_transient(&new_root)?;
     }
 
-    match mount_at(&sysroot_clone, &new_root, "sysroot") {
+    match composefs::mount::mount_at(&sysroot_clone, &new_root, "sysroot") {
         Ok(()) | Err(Errno::NOENT) => {}
         Err(err) => Err(err)?,
     }
 
     // etc + var
     let state = open_dir(open_dir(&sysroot, "state/deploy")?, image.to_hex())?;
-    mount_subdir(&new_root, &state, "etc", config.etc, MountType::Overlay)?;
+    mount_subdir(&new_root, &state, "etc", config.etc, MountType::Bind)?;
     mount_subdir(&new_root, &state, "var", config.var, MountType::Bind)?;
 
     if cfg!(not(feature = "pre-6.15")) {
         // Replace the /sysroot with the new composed root filesystem
         unmount(&args.sysroot, UnmountFlags::DETACH)?;
-        mount_at(&new_root, CWD, &args.sysroot)?;
+        mount_at_wrapper(&new_root, CWD, &args.sysroot)?;
     }
 
     Ok(())
