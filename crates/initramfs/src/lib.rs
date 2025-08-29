@@ -102,8 +102,8 @@ pub struct Args {
     pub target: Option<PathBuf>,
 }
 
-// Helpers
-fn mount_at_wrapper(
+/// Wrapper around [`composefs::mount::mount_at`]
+pub fn mount_at_wrapper(
     fs_fd: impl AsFd,
     dirfd: impl AsFd,
     path: impl path::Arg + Debug + Clone,
@@ -242,7 +242,8 @@ fn mount_subdir(
 }
 
 #[context("GPT workaround")]
-pub(crate) fn gpt_workaround() -> Result<()> {
+/// Workaround for /dev/gpt-auto-root
+pub fn gpt_workaround() -> Result<()> {
     // https://github.com/systemd/systemd/issues/35017
     let rootdev = stat("/dev/gpt-auto-root");
 

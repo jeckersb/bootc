@@ -1,12 +1,10 @@
 //! Code for bootc that goes into the initramfs.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-mod mount;
-
 use anyhow::Result;
 
+use bootc_initramfs_setup::{gpt_workaround, setup_root, Args};
 use clap::Parser;
-use mount::{gpt_workaround, setup_root, Args};
 
 fn main() -> Result<()> {
     let args = Args::parse();
