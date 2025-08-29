@@ -1,19 +1,41 @@
 //! Helpers related to tracing, used by main entrypoints
 
+use tracing_subscriber::prelude::*;
+
 /// Initialize tracing with the default configuration.
 pub fn initialize_tracing() {
-    // Don't include timestamps and such because they're not really useful and
-    // too verbose, and plus several log targets such as journald will already
-    // include timestamps.
+    // Always try to use journald subscriber if we're running under systemd
+    // This ensures key messages (info, warn, error) go to the journal
+    let journald_layer = if let Ok(()) = std::env::var("JOURNAL_STREAM").map(|_| ()) {
+        tracing_journald::layer()
+            .ok()
+            .map(|layer| layer.with_filter(tracing_subscriber::filter::LevelFilter::INFO))
+    } else {
+        None
+    };
+
+    // Always add the stdout/stderr layer for RUST_LOG support
+    // This preserves the existing workflow for users
     let format = tracing_subscriber::fmt::format()
         .without_time()
         .with_target(false)
         .compact();
-    // Log to stderr by default
-    tracing_subscriber::fmt()
+
+    let fmt_layer = tracing_subscriber::fmt::layer()
         .event_format(format)
         .with_writer(std::io::stderr)
-        .with_max_level(tracing::Level::WARN)
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
+        .with_filter(tracing_subscriber::EnvFilter::from_default_env());
+
+    // Build the registry with layers, handling the journald layer conditionally
+    match journald_layer {
+        Some(journald) => {
+            tracing_subscriber::registry()
+                .with(fmt_layer)
+                .with(journald)
+                .init();
+        }
+        None => {
+            tracing_subscriber::registry().with(fmt_layer).init();
+        }
+    }
 }
