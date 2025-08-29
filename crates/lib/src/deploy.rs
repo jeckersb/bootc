@@ -429,11 +429,24 @@ pub(crate) async fn pull_from_prepared(
     let imgref_canonicalized = imgref.clone().canonicalize()?;
     tracing::debug!("Canonicalized image reference: {imgref_canonicalized:#}");
 
+    // Log successful import completion
+    const IMPORT_COMPLETE_JOURNAL_ID: &str = "4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8";
+
+    tracing::info!(
+        message_id = IMPORT_COMPLETE_JOURNAL_ID,
+        bootc.image.reference = &imgref.image,
+        bootc.image.transport = &imgref.transport,
+        bootc.manifest_digest = import.manifest_digest.as_ref(),
+        bootc.ostree_commit = &import.merge_commit,
+        "Successfully imported image: {}",
+        imgref
+    );
+
     if let Some(msg) =
         ostree_container::store::image_filtered_content_warning(&import.filtered_files)
             .context("Image content warning")?
     {
-        crate::journal::journal_print(libsystemd::logging::Priority::Notice, &msg);
+        tracing::info!("{}", msg);
     }
     Ok(Box::new((*import).into()))
 }
@@ -447,8 +460,30 @@ pub(crate) async fn pull(
     prog: ProgressWriter,
 ) -> Result<Box<ImageState>> {
     match prepare_for_pull(repo, imgref, target_imgref).await? {
-        PreparedPullResult::AlreadyPresent(existing) => Ok(existing),
+        PreparedPullResult::AlreadyPresent(existing) => {
+            // Log that the image was already present (Debug level since it's not actionable)
+            const IMAGE_ALREADY_PRESENT_ID: &str = "5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9";
+            tracing::debug!(
+                message_id = IMAGE_ALREADY_PRESENT_ID,
+                bootc.image.reference = &imgref.image,
+                bootc.image.transport = &imgref.transport,
+                bootc.status = "already_present",
+                "Image already present: {}",
+                imgref
+            );
+            Ok(existing)
+        }
         PreparedPullResult::Ready(prepared_image_meta) => {
+            // Log that we're pulling a new image
+            const PULLING_NEW_IMAGE_ID: &str = "6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0";
+            tracing::info!(
+                message_id = PULLING_NEW_IMAGE_ID,
+                bootc.image.reference = &imgref.image,
+                bootc.image.transport = &imgref.transport,
+                bootc.status = "pulling_new",
+                "Pulling new image: {}",
+                imgref
+            );
             Ok(pull_from_prepared(imgref, quiet, prog, *prepared_image_meta).await?)
         }
     }
@@ -466,6 +501,14 @@ pub(crate) async fn wipe_ostree(sysroot: Sysroot) -> Result<()> {
 }
 
 pub(crate) async fn cleanup(sysroot: &Storage) -> Result<()> {
+    // Log the cleanup operation to systemd journal
+    const CLEANUP_JOURNAL_ID: &str = "2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6";
+
+    tracing::info!(
+        message_id = CLEANUP_JOURNAL_ID,
+        "Starting cleanup of old images and deployments"
+    );
+
     let bound_prune = prune_container_store(sysroot);
 
     // We create clones (just atomic reference bumps) here to move to the thread.
@@ -615,6 +658,20 @@ pub(crate) async fn stage(
     spec: &RequiredHostSpec<'_>,
     prog: ProgressWriter,
 ) -> Result<()> {
+    // Log the staging operation to systemd journal with comprehensive upgrade information
+    const STAGE_JOURNAL_ID: &str = "8f7a2b1c3d4e5f6a7b8c9d0e1f2a3b4c";
+
+    tracing::info!(
+        message_id = STAGE_JOURNAL_ID,
+        bootc.image.reference = &spec.image.image,
+        bootc.image.transport = &spec.image.transport,
+        bootc.manifest_digest = image.manifest_digest.as_ref(),
+        bootc.stateroot = stateroot,
+        "Staging image for deployment: {} (digest: {})",
+        spec.image,
+        image.manifest_digest
+    );
+
     let ostree = sysroot.get_ostree()?;
     let mut subtask = SubTaskStep {
         subtask: "merging".into(),
@@ -773,19 +830,26 @@ pub(crate) async fn rollback(sysroot: &Storage) -> Result<()> {
     let rollback_image = rollback_status
         .query_image(repo)?
         .ok_or_else(|| anyhow!("Rollback is not container image based"))?;
-    let msg = format!("Rolling back to image: {}", rollback_image.manifest_digest);
-    libsystemd::logging::journal_send(
-        libsystemd::logging::Priority::Info,
-        &msg,
-        [
-            ("MESSAGE_ID", ROLLBACK_JOURNAL_ID),
-            (
-                "BOOTC_MANIFEST_DIGEST",
-                rollback_image.manifest_digest.as_ref(),
-            ),
-        ]
-        .into_iter(),
-    )?;
+
+    // Get current booted image for comparison
+    let current_image = host
+        .status
+        .booted
+        .as_ref()
+        .and_then(|b| b.query_image(repo).ok()?);
+
+    tracing::info!(
+        message_id = ROLLBACK_JOURNAL_ID,
+        bootc.manifest_digest = rollback_image.manifest_digest.as_ref(),
+        bootc.ostree_commit = &rollback_image.merge_commit,
+        bootc.rollback_type = if reverting { "revert" } else { "rollback" },
+        bootc.current_manifest_digest = current_image
+            .as_ref()
+            .map(|i| i.manifest_digest.as_ref())
+            .unwrap_or("none"),
+        "Rolling back to image: {}",
+        rollback_image.manifest_digest
+    );
     // SAFETY: If there's a rollback status, then there's a deployment
     let rollback_deployment = deployments.rollback.expect("rollback deployment");
     let new_deployments = if reverting {
@@ -833,6 +897,18 @@ fn find_newest_deployment_name(deploysdir: &Dir) -> Result<String> {
 
 // Implementation of `bootc switch --in-place`
 pub(crate) fn switch_origin_inplace(root: &Dir, imgref: &ImageReference) -> Result<String> {
+    // Log the in-place switch operation to systemd journal
+    const SWITCH_INPLACE_JOURNAL_ID: &str = "3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7";
+
+    tracing::info!(
+        message_id = SWITCH_INPLACE_JOURNAL_ID,
+        bootc.image.reference = &imgref.image,
+        bootc.image.transport = &imgref.transport,
+        bootc.switch_type = "in_place",
+        "Performing in-place switch to image: {}",
+        imgref
+    );
+
     // First, just create the new origin file
     let origin = origin_from_imageref(imgref)?;
     let serialized_origin = origin.to_data();

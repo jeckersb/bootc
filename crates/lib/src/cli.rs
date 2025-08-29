@@ -1067,6 +1067,26 @@ async fn switch(opts: SwitchOpts) -> Result<()> {
         println!("Image specification is unchanged.");
         return Ok(());
     }
+
+    // Log the switch operation to systemd journal
+    const SWITCH_JOURNAL_ID: &str = "7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1";
+    let old_image = host
+        .spec
+        .image
+        .as_ref()
+        .map(|i| i.image.as_str())
+        .unwrap_or("none");
+
+    tracing::info!(
+        message_id = SWITCH_JOURNAL_ID,
+        bootc.old_image_reference = old_image,
+        bootc.new_image_reference = &target.image,
+        bootc.new_image_transport = &target.transport,
+        "Switching from image {} to {}",
+        old_image,
+        target.image
+    );
+
     let new_spec = RequiredHostSpec::from_spec(&new_spec)?;
 
     let fetched = crate::deploy::pull(repo, &target, None, opts.quiet, prog.clone()).await?;

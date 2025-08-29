@@ -70,6 +70,19 @@ pub async fn deploy(
     imgref: &OstreeImageReference,
     options: Option<DeployOpts<'_>>,
 ) -> Result<Box<LayeredImageState>> {
+    // Log the deployment operation to systemd journal (Debug level since staging already logged the main info)
+
+    const DEPLOY_JOURNAL_ID: &str = "9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3";
+
+    tracing::debug!(
+        message_id = DEPLOY_JOURNAL_ID,
+        bootc.image.reference = &imgref.imgref.name,
+        bootc.image.transport = &imgref.imgref.transport.to_string(),
+        bootc.stateroot = stateroot,
+        "Deploying container image to OSTree: {}",
+        imgref
+    );
+
     let cancellable = ostree::gio::Cancellable::NONE;
     let options = options.unwrap_or_default();
     let repo = &sysroot.repo();
