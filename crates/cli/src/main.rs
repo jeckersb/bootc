@@ -1,8 +1,6 @@
 //! The main entrypoint for bootc, which just performs global initialization, and then
 //! calls out into the library.
 //!
-use std::io::Write as _;
-
 use anyhow::Result;
 
 /// The code called after we've done process global init and created
@@ -35,15 +33,5 @@ fn run() -> Result<()> {
 }
 
 fn main() {
-    use owo_colors::OwoColorize;
-
-    // In order to print the error in a custom format (with :#) our
-    // main simply invokes a run() where all the work is done.
-    // This code just captures any errors.
-    if let Err(e) = run() {
-        let mut stderr = anstream::stderr();
-        // Don't panic if writing fails
-        let _ = writeln!(stderr, "{}{:#}", "error: ".red(), e);
-        std::process::exit(1);
-    }
+    bootc_utils::run_main(run)
 }

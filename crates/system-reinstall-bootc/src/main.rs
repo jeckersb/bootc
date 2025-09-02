@@ -66,11 +66,5 @@ fn run() -> Result<()> {
 }
 
 fn main() {
-    // In order to print the error in a custom format (with :#) our
-    // main simply invokes a run() where all the work is done.
-    // This code just captures any errors.
-    if let Err(e) = run() {
-        tracing::error!("{:#}", e);
-        std::process::exit(1);
-    }
+    bootc_utils::run_main(run)
 }

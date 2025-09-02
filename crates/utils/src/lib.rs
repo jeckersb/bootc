@@ -16,3 +16,21 @@ pub use tracing_util::*;
 pub mod reexec;
 mod result_ext;
 pub use result_ext::*;
+
+/// Intended for use in `main`, calls an inner function and
+/// handles errors by printing them.
+pub fn run_main<F>(f: F)
+where
+    F: FnOnce() -> anyhow::Result<()>,
+{
+    use std::io::Write as _;
+
+    use owo_colors::OwoColorize;
+
+    if let Err(e) = f() {
+        let mut stderr = anstream::stderr();
+        // Don't panic if writing fails.
+        let _ = writeln!(stderr, "{}{:#}", "error: ".red(), e);
+        std::process::exit(1);
+    }
+}
