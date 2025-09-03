@@ -151,7 +151,7 @@ fn verity_opt(opt: &Option<String>) -> Result<Option<Sha512HashValue>> {
     Ok(opt.as_ref().map(FsVerityHashValue::from_hex).transpose()?)
 }
 
-pub(crate) async fn run_from_iter<I>(system_store: &crate::store::Storage, args: I) -> Result<()>
+pub(crate) async fn run_from_iter<I>(args: I) -> Result<()>
 where
     I: IntoIterator,
     I::Item: Into<OsString> + Clone,
@@ -172,6 +172,7 @@ where
         if args.insecure {
             anyhow::bail!("Cannot override insecure state for system repo");
         }
+        let system_store = crate::cli::get_storage().await?;
         system_store.get_ensure_composefs()?
     };
     let repo = &repo;
