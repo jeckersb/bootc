@@ -125,7 +125,6 @@ struct OstreeTarWriter<'a, W: std::io::Write> {
     wrote_dirtree: HashSet<String>,
     wrote_dirmeta: HashSet<String>,
     wrote_content: HashSet<String>,
-    wrote_xattrs: HashSet<String>,
 }
 
 pub(crate) fn object_path(objtype: ostree::ObjectType, checksum: &str) -> Utf8PathBuf {
@@ -142,11 +141,6 @@ pub(crate) fn object_path(objtype: ostree::ObjectType, checksum: &str) -> Utf8Pa
 }
 
 fn v1_xattrs_object_path(checksum: &str) -> Utf8PathBuf {
-    let (first, rest) = checksum.split_at(2);
-    format!("{OSTREEDIR}/repo/objects/{first}/{rest}.file-xattrs").into()
-}
-
-fn v1_xattrs_link_object_path(checksum: &str) -> Utf8PathBuf {
     let (first, rest) = checksum.split_at(2);
     format!("{OSTREEDIR}/repo/objects/{first}/{rest}.file-xattrs-link").into()
 }
@@ -196,7 +190,6 @@ impl<'a, W: std::io::Write> OstreeTarWriter<'a, W> {
             wrote_dirmeta: HashSet::new(),
             wrote_dirtree: HashSet::new(),
             wrote_content: HashSet::new(),
-            wrote_xattrs: HashSet::new(),
         };
         Ok(r)
     }
@@ -223,18 +216,6 @@ impl<'a, W: std::io::Write> OstreeTarWriter<'a, W> {
     /// Add a regular file entry with default permissions (root/root 0644)
     fn append_default_data(&mut self, path: &Utf8Path, buf: &[u8]) -> Result<()> {
         tar_append_default_data(self.out, path, buf)
-    }
-
-    /// Add an hardlink entry with default permissions (root/root 0644)
-    fn append_default_hardlink(&mut self, path: &Utf8Path, link_target: &Utf8Path) -> Result<()> {
-        let mut h = tar::Header::new_gnu();
-        h.set_entry_type(tar::EntryType::Link);
-        h.set_uid(0);
-        h.set_gid(0);
-        h.set_mode(0o644);
-        h.set_size(0);
-        self.out.append_link(&mut h, path, link_target)?;
-        Ok(())
     }
 
     /// Write the initial /sysroot/ostree/repo structure.
@@ -386,24 +367,8 @@ impl<'a, W: std::io::Write> OstreeTarWriter<'a, W> {
         let xattrs_data = xattrs.data_as_bytes();
         let xattrs_data = xattrs_data.as_ref();
 
-        let xattrs_checksum = {
-            let digest = openssl::hash::hash(openssl::hash::MessageDigest::sha256(), xattrs_data)?;
-            hex::encode(digest)
-        };
-
-        let path = v1_xattrs_object_path(&xattrs_checksum);
-        // Write xattrs content into a separate `.file-xattrs` object.
-        if !self.wrote_xattrs.contains(&xattrs_checksum) {
-            let inserted = self.wrote_xattrs.insert(xattrs_checksum);
-            debug_assert!(inserted);
-            self.append_default_data(&path, xattrs_data)?;
-        }
-        // Write a `.file-xattrs-link` which links the file object to
-        // the corresponding detached xattrs.
-        {
-            let link_obj_path = v1_xattrs_link_object_path(checksum);
-            self.append_default_hardlink(&link_obj_path, &path)?;
-        }
+        let path = v1_xattrs_object_path(&checksum);
+        self.append_default_data(&path, xattrs_data)?;
 
         Ok(true)
     }
@@ -935,16 +900,8 @@ mod tests {
     #[test]
     fn test_v1_xattrs_object_path() {
         let checksum = "b8627e3ef0f255a322d2bd9610cfaaacc8f122b7f8d17c0e7e3caafa160f9fc7";
-        let expected = "sysroot/ostree/repo/objects/b8/627e3ef0f255a322d2bd9610cfaaacc8f122b7f8d17c0e7e3caafa160f9fc7.file-xattrs";
-        let output = v1_xattrs_object_path(checksum);
-        assert_eq!(&output, expected);
-    }
-
-    #[test]
-    fn test_v1_xattrs_link_object_path() {
-        let checksum = "b8627e3ef0f255a322d2bd9610cfaaacc8f122b7f8d17c0e7e3caafa160f9fc7";
         let expected = "sysroot/ostree/repo/objects/b8/627e3ef0f255a322d2bd9610cfaaacc8f122b7f8d17c0e7e3caafa160f9fc7.file-xattrs-link";
-        let output = v1_xattrs_link_object_path(checksum);
+        let output = v1_xattrs_object_path(checksum);
         assert_eq!(&output, expected);
     }
 }
