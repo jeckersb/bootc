@@ -39,9 +39,9 @@ cap-std-ext = "4.0.3"
 chrono = { version = "0.4.38", default-features = false }
 clap = "4.5.4"
 clap_mangen = { version = "0.2.20" }
-composefs = { git = "https://github.com/containers/composefs-rs", rev = "ce28ee8a7b43290941d208c8ca820150a6504d5a", package = "composefs", features = ["rhel9"] }
-composefs-boot = { git = "https://github.com/containers/composefs-rs", rev = "ce28ee8a7b43290941d208c8ca820150a6504d5a", package = "composefs-boot" }
-composefs-oci = { git = "https://github.com/containers/composefs-rs", rev = "ce28ee8a7b43290941d208c8ca820150a6504d5a", package = "composefs-oci" }
+composefs = { git = "https://github.com/containers/composefs-rs", rev = "8402af606ff0866a6c4d891264cfac869da22ed7", package = "composefs", features = ["rhel9"] }
+composefs-boot = { git = "https://github.com/containers/composefs-rs", rev = "8402af606ff0866a6c4d891264cfac869da22ed7", package = "composefs-boot" }
+composefs-oci = { git = "https://github.com/containers/composefs-rs", rev = "8402af606ff0866a6c4d891264cfac869da22ed7", package = "composefs-oci" }
 fn-error-context = "0.2.1"
 hex = "0.4.3"
 indicatif = "0.18.0"
