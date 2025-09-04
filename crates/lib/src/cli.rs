@@ -39,10 +39,9 @@ use crate::utils::sigpolicy_from_opt;
 /// Shared progress options
 #[derive(Debug, Parser, PartialEq, Eq)]
 pub(crate) struct ProgressOptions {
-    /// File descriptor number which must refer to an open pipe (anonymous or named).
+    /// File descriptor number which must refer to an open pipe.
     ///
-    /// Interactive progress will be written to this file descriptor as "JSON lines"
-    /// format, where each value is separated by a newline.
+    /// Progress is written as JSON lines to this file descriptor.
     #[clap(long, hide = true)]
     pub(crate) progress_fd: Option<RawProgressFd>,
 }
@@ -69,23 +68,19 @@ pub(crate) struct UpgradeOpts {
 
     /// Check if an update is available without applying it.
     ///
-    /// This only downloads an updated manifest and image configuration (i.e. typically kilobyte-sized metadata)
-    /// as opposed to the image layers.
+    /// This only downloads updated metadata, not the full image layers.
     #[clap(long, conflicts_with = "apply")]
     pub(crate) check: bool,
 
     /// Restart or reboot into the new target image.
     ///
-    /// Currently, this option always reboots.  In the future this command
-    /// will detect the case where no kernel changes are queued, and perform
-    /// a userspace-only restart.
+    /// Currently, this always reboots. Future versions may support userspace-only restart.
     #[clap(long, conflicts_with = "check")]
     pub(crate) apply: bool,
 
     /// Configure soft reboot behavior.
     ///
-    /// 'required' will fail if soft reboot is not available.
-    /// 'auto' will use soft reboot if available, otherwise fall back to regular reboot.
+    /// 'required' fails if soft reboot unavailable, 'auto' falls back to regular reboot.
     #[clap(long = "soft-reboot", conflicts_with = "check")]
     pub(crate) soft_reboot: Option<SoftRebootMode>,
 
@@ -102,16 +97,13 @@ pub(crate) struct SwitchOpts {
 
     /// Restart or reboot into the new target image.
     ///
-    /// Currently, this option always reboots.  In the future this command
-    /// will detect the case where no kernel changes are queued, and perform
-    /// a userspace-only restart.
+    /// Currently, this always reboots. Future versions may support userspace-only restart.
     #[clap(long)]
     pub(crate) apply: bool,
 
     /// Configure soft reboot behavior.
     ///
-    /// 'required' will fail if soft reboot is not available.
-    /// 'auto' will use soft reboot if available, otherwise fall back to regular reboot.
+    /// 'required' fails if soft reboot unavailable, 'auto' falls back to regular reboot.
     #[clap(long = "soft-reboot")]
     pub(crate) soft_reboot: Option<SoftRebootMode>,
 
@@ -161,8 +153,7 @@ pub(crate) struct RollbackOpts {
 
     /// Configure soft reboot behavior.
     ///
-    /// 'required' will fail if soft reboot is not available.
-    /// 'auto' will use soft reboot if available, otherwise fall back to regular reboot.
+    /// 'required' fails if soft reboot unavailable, 'auto' falls back to regular reboot.
     #[clap(long = "soft-reboot")]
     pub(crate) soft_reboot: Option<SoftRebootMode>,
 }
@@ -277,14 +268,6 @@ pub(crate) enum InstallOpts {
     /// At the current time, the only output key is `root-fs-type` which is a string-valued
     /// filesystem name suitable for passing to `mkfs.$type`.
     PrintConfiguration,
-}
-
-/// Options for man page generation
-#[derive(Debug, Parser, PartialEq, Eq)]
-pub(crate) struct ManOpts {
-    #[clap(long)]
-    /// Output to this directory
-    pub(crate) directory: Utf8PathBuf,
 }
 
 /// Subcommands which can be executed as part of a container build.
@@ -540,6 +523,9 @@ pub(crate) enum InternalsOpts {
         #[clap(long)]
         merge: bool,
     },
+    #[cfg(feature = "docgen")]
+    /// Dump CLI structure as JSON for documentation generation
+    DumpCliJson,
 }
 
 #[derive(Debug, clap::Subcommand, PartialEq, Eq)]
@@ -625,70 +611,26 @@ pub(crate) enum Opt {
     ///
     /// Only changes to the `spec` section are honored.
     Edit(EditOpts),
-    /// Display status
+    /// Display status.
     ///
-    /// If standard output is a terminal, this will output a description of the bootc system state.
-    /// If standard output is not a terminal, output a YAML-formatted object using a schema
-    /// intended to match a Kubernetes resource that describes the state of the booted system.
-    ///
-    /// ## Parsing output via programs
-    ///
-    /// Either the default YAML format or `--format=json` can be used. Do not attempt to
-    /// explicitly parse the output of `--format=humanreadable` as it will very likely
-    /// change over time.
-    ///
-    /// ## Programmatically detecting whether the system is deployed via bootc
-    ///
-    /// Invoke e.g. `bootc status --json`, and check if `status.booted` is not `null`.
+    /// Shows bootc system state. Outputs YAML by default, human-readable if terminal detected.
     Status(StatusOpts),
-    /// Adds a transient writable overlayfs on `/usr` that will be discarded on reboot.
+    /// Add a transient writable overlayfs on `/usr`.
     ///
-    /// ## Use cases
-    ///
-    /// A common pattern is wanting to use tracing/debugging tools, such as `strace`
-    /// that may not be in the base image.  A system package manager such as `apt` or
-    /// `dnf` can apply changes into this transient overlay that will be discarded on
-    /// reboot.
-    ///
-    /// ## /etc and /var
-    ///
-    /// However, this command has no effect on `/etc` and `/var` - changes written
-    /// there will persist.  It is common for package installations to modify these
-    /// directories.
-    ///
-    /// ## Unmounting
-    ///
-    /// Almost always, a system process will hold a reference to the open mount point.
-    /// You can however invoke `umount -l /usr` to perform a "lazy unmount".
-    ///
+    /// Allows temporary package installation that will be discarded on reboot.
     #[clap(alias = "usroverlay")]
     UsrOverlay,
     /// Install the running container to a target.
     ///
-    /// ## Understanding installations
-    ///
-    /// OCI containers are effectively layers of tarballs with JSON for metadata; they
-    /// cannot be booted directly.  The `bootc install` flow is a highly opinionated
-    /// method to take the contents of the container image and install it to a target
-    /// block device (or an existing filesystem) in such a way that it can be booted.
-    ///
-    /// For example, a Linux partition table and filesystem is used, and the bootloader and kernel
-    /// embedded in the container image are also prepared.
-    ///
-    /// A bootc installed container currently uses OSTree as a backend, and this sets
-    /// it up such that a subsequent `bootc upgrade` can perform in-place updates.
-    ///
-    /// An installation is not simply a copy of the container filesystem, but includes
-    /// other setup and metadata.
+    /// Takes a container image and installs it to disk in a bootable format.
     #[clap(subcommand)]
     Install(InstallOpts),
     /// Operations which can be executed as part of a container build.
     #[clap(subcommand)]
     Container(ContainerOpts),
-    /// Operations on container images
+    /// Operations on container images.
     ///
-    /// Stability: This interface is not declared stable and may change or be removed
-    /// at any point in the future.
+    /// Stability: This interface may change in the future.
     #[clap(subcommand, hide = true)]
     Image(ImageOpts),
     /// Execute the given command in the host mount namespace
@@ -704,9 +646,6 @@ pub(crate) enum Opt {
     #[clap(subcommand)]
     #[clap(hide = true)]
     Internals(InternalsOpts),
-    #[clap(hide(true))]
-    #[cfg(feature = "docgen")]
-    Man(ManOpts),
 }
 
 /// Ensure we've entered a mount namespace, so that we can remount
@@ -1499,6 +1438,14 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
             }
             #[cfg(feature = "rhsm")]
             InternalsOpts::PublishRhsmFacts => crate::rhsm::publish_facts(&root).await,
+            #[cfg(feature = "docgen")]
+            InternalsOpts::DumpCliJson => {
+                use clap::CommandFactory;
+                let cmd = Opt::command();
+                let json = crate::cli_json::dump_cli_json(&cmd)?;
+                println!("{}", json);
+                Ok(())
+            }
             InternalsOpts::DirDiff {
                 pristine_etc,
                 current_etc,
@@ -1522,8 +1469,6 @@ async fn run_from_opt(opt: Opt) -> Result<()> {
                 Ok(())
             }
         },
-        #[cfg(feature = "docgen")]
-        Opt::Man(manopts) => crate::docgen::generate_manpages(&manopts.directory),
         Opt::State(opts) => match opts {
             StateOpts::WipeOstree => {
                 let sysroot = ostree::Sysroot::new_default();

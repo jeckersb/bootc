@@ -36,6 +36,7 @@ BuildRequires: libzstd-devel
 BuildRequires: make
 BuildRequires: ostree-devel
 BuildRequires: openssl-devel
+BuildRequires: go-md2man
 %if 0%{?rhel}
 BuildRequires: rust-toolset
 %else
@@ -106,6 +107,8 @@ export SYSTEM_REINSTALL_BOOTC_INSTALL_PODMAN_PATH=%{system_reinstall_bootc_insta
     # what we want.
     %cargo_build %cargo_args
 %endif
+
+make manpages
 
 %cargo_vendor_manifest
 # https://pagure.io/fedora-rust/rust-packaging/issue/33
