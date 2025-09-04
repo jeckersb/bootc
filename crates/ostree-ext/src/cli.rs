@@ -942,7 +942,7 @@ async fn container_history(repo: &ostree::Repo, imgref: &ImageReference) -> Resu
         .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
         .set_header(["ID", "SIZE", "CRCEATED BY"]);
 
-    let mut history = img.configuration.history().iter();
+    let mut history = img.configuration.history().iter().flatten();
     let layers = img.manifest.layers().iter();
     for layer in layers {
         let histent = history.next();

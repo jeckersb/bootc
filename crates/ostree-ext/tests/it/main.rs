@@ -574,7 +574,7 @@ async fn impl_test_container_import_export(chunked: bool) -> Result<()> {
 
     let n_chunks = if chunked { LAYERS_V0_LEN } else { 1 };
     assert_eq!(cfg.rootfs().diff_ids().len(), n_chunks);
-    assert_eq!(cfg.history().len(), n_chunks);
+    assert_eq!(cfg.history().as_ref().unwrap().len(), n_chunks);
 
     // Verify exporting to ociarchive
     {

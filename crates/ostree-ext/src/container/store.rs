@@ -274,7 +274,13 @@ impl PreparedImport {
     ) -> impl Iterator<Item = Result<(&ManifestLayerState, &History)>> {
         // FIXME use .filter(|h| h.empty_layer.unwrap_or_default()) after https://github.com/containers/oci-spec-rs/pull/100 lands.
         let truncated = std::iter::once_with(|| Err(anyhow::anyhow!("Truncated history")));
-        let history = self.config.history().iter().map(Ok).chain(truncated);
+        let history = self
+            .config
+            .history()
+            .iter()
+            .flatten()
+            .map(Ok)
+            .chain(truncated);
         self.all_layers()
             .zip(history)
             .map(|(s, h)| h.map(|h| (s, h)))
@@ -1486,7 +1492,9 @@ pub(crate) fn export_to_oci(
     let mut new_manifest = srcinfo.manifest.clone();
     new_manifest.layers_mut().clear();
     let mut new_config = srcinfo.configuration.clone();
-    new_config.history_mut().clear();
+    if let Some(history) = new_config.history_mut() {
+        history.clear();
+    }
     new_config.rootfs_mut().diff_ids_mut().clear();
 
     let mut dest_oci = ocidir::OciDir::ensure(dest_oci.try_clone()?)?;
@@ -1538,17 +1546,14 @@ pub(crate) fn export_to_oci(
             .get(i)
             .and_then(|l| l.annotations().as_ref())
             .cloned();
-        let previous_description = srcinfo
-            .configuration
-            .history()
-            .get(i)
+        let history = srcinfo.configuration.history().as_ref();
+        let history_entry = history.and_then(|v| v.get(i));
+        let previous_description = history_entry
+            .clone()
             .and_then(|h| h.comment().as_deref())
             .unwrap_or_default();
 
-        let previous_created = srcinfo
-            .configuration
-            .history()
-            .get(i)
+        let previous_created = history_entry
             .and_then(|h| h.created().as_deref())
             .and_then(bootc_utils::try_deserialize_timestamp)
             .unwrap_or_default();

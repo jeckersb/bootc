@@ -8,12 +8,13 @@ use camino::Utf8Path;
 use cap_std::fs::Dir;
 use cap_std_ext::cap_std;
 use containers_image_proxy::oci_spec;
+use flate2::write::GzEncoder;
 use fn_error_context::context;
 use gio::prelude::*;
 use oci_spec::image as oci_image;
 use ocidir::{
     oci_spec::image::{Arch, Platform},
-    GzipLayerWriter,
+    LayerWriter,
 };
 use ostree::gio;
 use xshell::cmd;
@@ -63,7 +64,7 @@ pub fn generate_derived_oci_from_tar<F>(
     arch: Option<Arch>,
 ) -> Result<()>
 where
-    F: FnOnce(&mut GzipLayerWriter) -> Result<()>,
+    F: for<'a> FnOnce(&mut LayerWriter<'a, GzEncoder<ocidir::BlobWriter<'a>>>) -> Result<()>,
 {
     let src = src.as_ref();
     let src = Dir::open_ambient_dir(src, cap_std::ambient_authority())?;
@@ -95,7 +96,7 @@ where
             .build()
             .unwrap(),
     );
-    config.history_mut().push(
+    config.history_mut().get_or_insert_default().push(
         oci_spec::image::HistoryBuilder::default()
             .created_by("generate_derived_oci")
             .build()
