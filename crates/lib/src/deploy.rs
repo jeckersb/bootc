@@ -794,9 +794,10 @@ pub(crate) async fn stage(
 
     // Unconditionally create or update /run/reboot-required to signal a reboot is needed.
     // This is monitored by kured (Kubernetes Reboot Daemon).
+    let reboot_message = format!("bootc: Reboot required for image: {}", &spec.image.image);
     let run_dir = Dir::open_ambient_dir("/run", cap_std::ambient_authority())?;
     run_dir
-        .atomic_write("reboot-required", b"")
+        .atomic_write("reboot-required", reboot_message.as_bytes())
         .context("Creating /run/reboot-required")?;
 
     Ok(())
