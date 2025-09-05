@@ -910,7 +910,7 @@ fn prepare_for_write() -> Result<()> {
     crate::cli::require_root(false)?;
     ensure_self_unshared_mount_namespace()?;
     if crate::lsm::selinux_enabled()? && !crate::lsm::selinux_ensure_install()? {
-        tracing::warn!("Do not have install_t capabilities");
+        tracing::debug!("Do not have install_t capabilities");
     }
     ENTERED.store(true, Ordering::SeqCst);
     Ok(())
