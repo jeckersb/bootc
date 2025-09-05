@@ -36,6 +36,7 @@ pub fn reexec_with_guardenv(k: &str, prefix_args: &[&str]) -> Result<()> {
     };
     cmd.env(k, "1");
     cmd.args(std::env::args_os().skip(1));
+    cmd.arg0(crate::NAME);
     tracing::debug!("Re-executing current process for {k}");
     Err(cmd.exec().into())
 }
