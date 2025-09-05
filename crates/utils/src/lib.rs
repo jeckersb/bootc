@@ -17,6 +17,9 @@ pub mod reexec;
 mod result_ext;
 pub use result_ext::*;
 
+/// The name of our binary
+pub const NAME: &str = "bootc";
+
 /// Intended for use in `main`, calls an inner function and
 /// handles errors by printing them.
 pub fn run_main<F>(f: F)

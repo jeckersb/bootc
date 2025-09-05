@@ -1215,9 +1215,8 @@ async fn usroverlay() -> Result<()> {
 pub fn global_init() -> Result<()> {
     // In some cases we re-exec with a temporary binary,
     // so ensure that the syslog identifier is set.
-    let name = "bootc";
-    ostree::glib::set_prgname(name.into());
-    if let Err(e) = rustix::thread::set_name(&CString::new(name).unwrap()) {
+    ostree::glib::set_prgname(bootc_utils::NAME.into());
+    if let Err(e) = rustix::thread::set_name(&CString::new(bootc_utils::NAME).unwrap()) {
         // This shouldn't ever happen
         eprintln!("failed to set name: {e}");
     }

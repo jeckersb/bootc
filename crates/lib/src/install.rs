@@ -918,7 +918,7 @@ pub(crate) fn exec_in_host_mountns(args: &[std::ffi::OsString]) -> Result<()> {
         tracing::debug!("Using supermin workaround");
         rustix::process::chroot("/root").context("chroot")?;
     }
-    Err(Command::new(cmd).args(args).exec()).context("exec")?
+    Err(Command::new(cmd).args(args).arg0(bootc_utils::NAME).exec()).context("exec")?
 }
 
 pub(crate) struct RootSetup {
