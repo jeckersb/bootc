@@ -4,9 +4,9 @@ use tracing_subscriber::prelude::*;
 
 /// Initialize tracing with the default configuration.
 pub fn initialize_tracing() {
-    // Always try to use journald subscriber if we're running under systemd
+    // Always try to use journald subscriber if we're running as root;
     // This ensures key messages (info, warn, error) go to the journal
-    let journald_layer = if let Ok(()) = std::env::var("JOURNAL_STREAM").map(|_| ()) {
+    let journald_layer = if rustix::process::getuid().is_root() {
         tracing_journald::layer()
             .ok()
             .map(|layer| layer.with_filter(tracing_subscriber::filter::LevelFilter::INFO))
