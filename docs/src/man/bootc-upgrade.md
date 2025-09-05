@@ -5,7 +5,7 @@ bootc-upgrade - Download and queue an updated container image to apply
 # SYNOPSIS
 
 **bootc upgrade** \[**\--quiet**\] \[**\--check**\] \[**\--apply**\]
-\[**-h**\|**\--help**\]
+\[**\--soft-reboot**\] \[**-h**\|**\--help**\]
 
 # DESCRIPTION
 
@@ -47,10 +47,26 @@ the update in addition.
     will detect the case where no kernel changes are queued, and perform
     a userspace-only restart.
 
+**\--soft-reboot** *\<SOFT_REBOOT\>*
+
+:   Configure soft reboot behavior.
+
+    \'required\' will fail if soft reboot is not available. \'auto\'
+    will use soft reboot if available, otherwise fall back to regular
+    reboot.\
+
+    \
+    *Possible values:*
+
+    -   required: Require a soft reboot; fail if not possible
+
+    -   auto: Automatically use soft reboot if possible, otherwise use
+        regular reboot
+
 **-h**, **\--help**
 
 :   Print help (see a summary with \'-h\')
 
 # VERSION
 
-v1.7.1
+v1.8.0

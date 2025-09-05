@@ -4,7 +4,8 @@ bootc-switch - Target a new container image reference to boot
 
 # SYNOPSIS
 
-**bootc switch** \[**\--quiet**\] \[**\--apply**\] \[**\--transport**\]
+**bootc switch** \[**\--quiet**\] \[**\--apply**\]
+\[**\--soft-reboot**\] \[**\--transport**\]
 \[**\--enforce-container-sigpolicy**\] \[**\--retain**\]
 \[**-h**\|**\--help**\] \<*TARGET*\>
 
@@ -38,6 +39,22 @@ updates via container image tags; for example,
     will detect the case where no kernel changes are queued, and perform
     a userspace-only restart.
 
+**\--soft-reboot** *\<SOFT_REBOOT\>*
+
+:   Configure soft reboot behavior.
+
+    \'required\' will fail if soft reboot is not available. \'auto\'
+    will use soft reboot if available, otherwise fall back to regular
+    reboot.\
+
+    \
+    *Possible values:*
+
+    -   required: Require a soft reboot; fail if not possible
+
+    -   auto: Automatically use soft reboot if possible, otherwise use
+        regular reboot
+
 **\--transport** *\<TRANSPORT\>* \[default: registry\]
 
 :   The transport; e.g. oci, oci-archive, containers-storage. Defaults
@@ -65,4 +82,4 @@ updates via container image tags; for example,
 
 # VERSION
 
-v1.7.1
+v1.8.0
