@@ -62,7 +62,7 @@ use crate::spec::ImageReference;
 use crate::store::Storage;
 use crate::task::Task;
 use crate::utils::sigpolicy_from_opt;
-use bootc_kernel_cmdline::Cmdline;
+use bootc_kernel_cmdline::utf8::Cmdline;
 use bootc_mount::Filesystem;
 
 /// The toplevel boot directory
@@ -1654,20 +1654,16 @@ struct RootMountInfo {
 /// Discover how to mount the root filesystem, using existing kernel arguments and information
 /// about the root mount.
 fn find_root_args_to_inherit(cmdline: &Cmdline, root_info: &Filesystem) -> Result<RootMountInfo> {
-    let root = cmdline
-        .value_of_utf8("root")
-        .context("Parsing root= karg")?;
     // If we have a root= karg, then use that
-    let (mount_spec, kargs) = if let Some(root) = root {
-        let rootflags = cmdline.find_str(bootc_kernel_cmdline::ROOTFLAGS);
-        let inherit_kargs =
-            cmdline.find_all_starting_with_str(bootc_kernel_cmdline::INITRD_ARG_PREFIX);
+    let (mount_spec, kargs) = if let Some(root) = cmdline.value_of("root") {
+        let rootflags = cmdline.find(bootc_kernel_cmdline::ROOTFLAGS);
+        let inherit_kargs = cmdline.find_all_starting_with(bootc_kernel_cmdline::INITRD_ARG_PREFIX);
         (
             root.to_owned(),
             rootflags
                 .into_iter()
                 .chain(inherit_kargs)
-                .map(|p| p.as_ref().to_owned())
+                .map(|p| p.to_string())
                 .collect(),
         )
     } else {
