@@ -3,6 +3,8 @@
 //! This module provides functionality for parsing and working with kernel command line
 //! arguments, supporting both key-only switches and key-value pairs with proper quote handling.
 
+use std::ops::Deref;
+
 use crate::bytes;
 
 use anyhow::Result;
@@ -34,7 +36,7 @@ impl<'a> Iterator for CmdlineIter<'a> {
     type Item = Parameter<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(Into::into)
+        self.0.next().map(Parameter::from_bytes)
     }
 }
 
@@ -71,7 +73,8 @@ impl<'a> Cmdline<'a> {
     /// Returns the first parameter matching the given key, or `None` if not found.
     /// Key comparison treats dashes and underscores as equivalent.
     pub fn find(&'a self, key: impl AsRef<str>) -> Option<Parameter<'a>> {
-        self.iter().find(|p| p.key() == key.as_ref().into())
+        let key = ParameterKey::from(key.as_ref());
+        self.iter().find(|p| p.key() == key)
     }
 
     /// Find all kernel arguments starting with the given UTF-8 prefix.
@@ -122,15 +125,19 @@ impl<'a> std::ops::Deref for ParameterKey<'a> {
     }
 }
 
-impl<'a> From<&'a str> for ParameterKey<'a> {
-    fn from(input: &'a str) -> Self {
-        Self(bytes::ParameterKey(input.as_bytes()))
+impl<'a> ParameterKey<'a> {
+    /// Construct a utf8::ParameterKey from a bytes::ParameterKey
+    ///
+    /// This is non-public and should only be used when the underlying
+    /// bytes are known to be valid UTF-8.
+    fn from_bytes(input: bytes::ParameterKey<'a>) -> Self {
+        Self(input)
     }
 }
 
-impl<'a> From<bytes::ParameterKey<'a>> for ParameterKey<'a> {
-    fn from(input: bytes::ParameterKey<'a>) -> Self {
-        Self(input)
+impl<'a> From<&'a str> for ParameterKey<'a> {
+    fn from(input: &'a str) -> Self {
+        Self(bytes::ParameterKey(input.as_bytes()))
     }
 }
 
@@ -181,9 +188,17 @@ impl<'a> Parameter<'a> {
         }
     }
 
+    /// Construct a utf8::Parameter from a bytes::Parameter
+    ///
+    /// This is non-public and should only be used when the underlying
+    /// bytes are known to be valid UTF-8.
+    fn from_bytes(bytes: bytes::Parameter<'a>) -> Self {
+        Self(bytes)
+    }
+
     /// Returns the key part of the parameter
     pub fn key(&'a self) -> ParameterKey<'a> {
-        self.0.key().into()
+        ParameterKey::from_bytes(self.0.key())
     }
 
     /// Returns the optional value part of the parameter
@@ -196,9 +211,21 @@ impl<'a> Parameter<'a> {
     }
 }
 
-impl<'a> From<bytes::Parameter<'a>> for Parameter<'a> {
-    fn from(bytes: bytes::Parameter<'a>) -> Self {
-        Self(bytes)
+impl<'a> TryFrom<bytes::Parameter<'a>> for Parameter<'a> {
+    type Error = anyhow::Error;
+
+    fn try_from(bytes: bytes::Parameter<'a>) -> Result<Self, Self::Error> {
+        if str::from_utf8(bytes.key().deref()).is_err() {
+            anyhow::bail!("Parameter key is not valid UTF-8");
+        }
+
+        if let Some(value) = bytes.value() {
+            if str::from_utf8(value).is_err() {
+                anyhow::bail!("Parameter value is not valid UTF-8");
+            }
+        }
+
+        Ok(Self(bytes))
     }
 }
 
@@ -329,6 +356,37 @@ mod tests {
         let switch = param("same_key");
         let keyvalue = param("same_key=but_with_a_value");
         assert_ne!(switch, keyvalue);
+    }
+
+    #[test]
+    fn test_parameter_tryfrom() {
+        // ok switch
+        let p = bytes::Parameter::parse(b"foo").0.unwrap();
+        let utf = Parameter::try_from(p).unwrap();
+        assert_eq!(utf.key(), "foo".into());
+        assert_eq!(utf.value(), None);
+
+        // ok key/value
+        let p = bytes::Parameter::parse(b"foo=bar").0.unwrap();
+        let utf = Parameter::try_from(p).unwrap();
+        assert_eq!(utf.key(), "foo".into());
+        assert_eq!(utf.value(), Some("bar".into()));
+
+        // bad switch
+        let p = bytes::Parameter::parse(b"f\xffoo").0.unwrap();
+        let e = Parameter::try_from(p);
+        assert_eq!(
+            e.unwrap_err().to_string(),
+            "Parameter key is not valid UTF-8"
+        );
+
+        // bad key/value
+        let p = bytes::Parameter::parse(b"foo=b\xffar").0.unwrap();
+        let e = Parameter::try_from(p);
+        assert_eq!(
+            e.unwrap_err().to_string(),
+            "Parameter value is not valid UTF-8"
+        );
     }
 
     #[test]

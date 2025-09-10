@@ -5,6 +5,8 @@
 
 use std::borrow::Cow;
 
+use crate::utf8;
+
 use anyhow::Result;
 
 /// A parsed kernel command line.
@@ -64,6 +66,13 @@ impl<'a> Cmdline<'a> {
         CmdlineIter(&self.0)
     }
 
+    /// Returns an iterator over all parameters in the command line
+    /// which are valid UTF-8.
+    pub fn iter_utf8(&'a self) -> impl Iterator<Item = utf8::Parameter<'a>> {
+        self.iter()
+            .filter_map(|p| utf8::Parameter::try_from(p).ok())
+    }
+
     /// Locate a kernel argument with the given key name.
     ///
     /// Returns the first parameter matching the given key, or `None` if not found.
@@ -73,14 +82,32 @@ impl<'a> Cmdline<'a> {
         self.iter().find(|p| p.key == key)
     }
 
+    /// Locate a kernel argument with the given key name.
+    ///
+    /// Returns an error if a parameter with the given key name is
+    /// found, but the value is not valid UTF-8.
+    ///
+    /// Otherwise, returns the first parameter matching the given key,
+    /// or `None` if not found.  Key comparison treats dashes and
+    /// underscores as equivalent.
+    pub fn find_utf8(&'a self, key: impl AsRef<str>) -> Result<Option<utf8::Parameter<'a>>> {
+        let bytes = match self.find(key.as_ref()) {
+            Some(p) => p,
+            None => return Ok(None),
+        };
+
+        Ok(Some(utf8::Parameter::try_from(bytes)?))
+    }
+
     /// Find all kernel arguments starting with the given prefix.
     ///
     /// This is a variant of [`Self::find`].
-    pub fn find_all_starting_with(
+    pub fn find_all_starting_with<T: AsRef<[u8]> + ?Sized>(
         &'a self,
-        prefix: &'a [u8],
+        prefix: &'a T,
     ) -> impl Iterator<Item = Parameter<'a>> + 'a {
-        self.iter().filter(move |p| p.key.0.starts_with(prefix))
+        self.iter()
+            .filter(move |p| p.key.0.starts_with(prefix.as_ref()))
     }
 
     /// Locate the value of the kernel argument with the given key name.
@@ -199,11 +226,10 @@ impl<'a> Parameter<'a> {
                 value = &value[1..];
 
                 // *Only* the first and last double quotes are stripped
-                value = value
-                    .strip_prefix(b"\"")
-                    .unwrap_or(value)
-                    .strip_suffix(b"\"")
-                    .unwrap_or(value);
+                value = {
+                    let v = value.strip_prefix(b"\"").unwrap_or(value);
+                    v.strip_suffix(b"\"").unwrap_or(v)
+                };
 
                 Self {
                     key,
@@ -237,9 +263,13 @@ impl<'a> PartialEq for Parameter<'a> {
 mod tests {
     use super::*;
 
-    // convenience method for tests
+    // convenience methods for tests
     fn param(s: &str) -> Parameter<'_> {
         Parameter::parse(s.as_bytes()).0.unwrap()
+    }
+
+    fn param_utf8(s: &str) -> utf8::Parameter<'_> {
+        utf8::Parameter::parse(s).0.unwrap()
     }
 
     #[test]
@@ -281,6 +311,12 @@ mod tests {
     fn test_parameter_quoted() {
         let p = param("foo=\"quoted value\"");
         assert_eq!(p.value, Some(b"quoted value".as_slice()));
+
+        let p = param("foo=\"unclosed quotes");
+        assert_eq!(p.value, Some(b"unclosed quotes".as_slice()));
+
+        let p = param("foo=trailing_quotes\"");
+        assert_eq!(p.value, Some(b"trailing_quotes".as_slice()));
     }
 
     #[test]
@@ -367,6 +403,38 @@ mod tests {
         // Test the find API
         assert_eq!(kargs.find("foo").unwrap().value.unwrap(), b"bar,bar2");
         assert!(kargs.find("nothing").is_none());
+    }
+
+    #[test]
+    fn test_kargs_iter_utf8() {
+        let kargs = Cmdline::from(b"foo=bar,bar2 \xff baz=fuz bad=oh\xffno wiz");
+        let mut iter = kargs.iter_utf8();
+
+        assert_eq!(iter.next(), Some(param_utf8("foo=bar,bar2")));
+        assert_eq!(iter.next(), Some(param_utf8("baz=fuz")));
+        assert_eq!(iter.next(), Some(param_utf8("wiz")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_kargs_find_utf8() {
+        let kargs = Cmdline::from(b"foo=bar,bar2 \xff baz=fuz bad=oh\xffno wiz");
+
+        // found it
+        assert_eq!(
+            kargs.find_utf8("foo").unwrap().unwrap().value().unwrap(),
+            "bar,bar2"
+        );
+
+        // didn't find it
+        assert!(kargs.find_utf8("nothing").unwrap().is_none());
+
+        // found it but key is invalid
+        let p = kargs.find_utf8("bad");
+        assert_eq!(
+            p.unwrap_err().to_string(),
+            "Parameter value is not valid UTF-8"
+        );
     }
 
     #[test]
