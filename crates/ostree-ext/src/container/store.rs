@@ -1167,9 +1167,12 @@ impl ImageImporter {
                     .write_mtree(&mt, cancellable)
                     .context("Writing mtree")?;
                 let merged_root = merged_root.downcast::<ostree::RepoFile>().unwrap();
+                // The merge has the base commit as a parent, if it exists. See
+                // https://github.com/ostreedev/ostree/pull/3523
+                let parent = base_commit.as_deref();
                 let merged_commit = repo
                     .write_commit_with_time(
-                        None,
+                        parent,
                         None,
                         None,
                         Some(&metadata),

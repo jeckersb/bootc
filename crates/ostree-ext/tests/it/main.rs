@@ -12,7 +12,7 @@ use oci_spec::image as oci_image;
 use ocidir::oci_spec::distribution::Reference;
 use ocidir::oci_spec::image::{Arch, DigestAlgorithm};
 use ostree_ext::chunking::ObjectMetaSized;
-use ostree_ext::container::{store, ManifestDiff};
+use ostree_ext::container::{store, ManifestDiff, OSTREE_COMMIT_LABEL};
 use ostree_ext::container::{
     Config, ExportOpts, ImageReference, OstreeImageReference, SignatureSource, Transport,
 };
@@ -968,6 +968,7 @@ async fn test_container_chunked() -> Result<()> {
     let mut fixture = Fixture::new_v1()?;
 
     let (imgref, expected_digest) = fixture.export_container().await.unwrap();
+    let exported_commit = fixture.srcrepo().require_rev(fixture.testref())?;
     let imgref = OstreeImageReference {
         sigverify: SignatureSource::ContainerPolicyAllowInsecure,
         imgref,
@@ -990,7 +991,12 @@ async fn test_container_chunked() -> Result<()> {
         store::PrepareResult::AlreadyPresent(_) => panic!("should not be already imported"),
         store::PrepareResult::Ready(r) => r,
     };
+    let labels = prep.config.labels_of_config().unwrap();
     assert!(prep.deprecated_warning().is_none());
+    assert_eq!(
+        labels.get(OSTREE_COMMIT_LABEL).unwrap(),
+        exported_commit.as_str()
+    );
     assert_eq!(prep.version(), Some("42.0"));
     let digest = prep.manifest_digest.clone();
     assert!(prep.ostree_commit_layer.as_ref().unwrap().commit.is_none());
@@ -1023,6 +1029,14 @@ async fn test_container_chunked() -> Result<()> {
     }
     let import = imp.import(prep).await.context("Init pull derived").unwrap();
     assert_eq!(import.manifest_digest, digest);
+    // For now we never expect that these are the same
+    assert_ne!(import.get_commit(), exported_commit.as_str());
+    // But the parent should match
+    let commit_obj = fixture.destrepo().load_commit(import.get_commit())?.0;
+    assert_eq!(
+        ostree::commit_get_parent(&commit_obj).unwrap(),
+        exported_commit.as_str()
+    );
 
     assert_eq!(store::list_images(fixture.destrepo()).unwrap().len(), 1);
 
