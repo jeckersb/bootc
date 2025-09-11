@@ -107,6 +107,30 @@ impl<'a> Cmdline<'a> {
         self.value_of(key)
             .ok_or_else(|| anyhow::anyhow!("Failed to find kernel argument '{key}'"))
     }
+
+    /// Add or modify a parameter to the command line
+    ///
+    /// Returns `true` if the parameter was added or modified.
+    ///
+    /// Returns `false` if the parameter already existed with the same
+    /// content.
+    pub fn add_or_modify(&mut self, param: Parameter) -> bool {
+        self.0.add_or_modify(param.0)
+    }
+
+    /// Remove parameter(s) with the given key from the command line
+    ///
+    /// Returns `true` if parameter(s) were removed.
+    pub fn remove(&mut self, key: ParameterKey) -> bool {
+        self.0.remove(key.0)
+    }
+}
+
+impl<'a> AsRef<str> for Cmdline<'a> {
+    fn as_ref(&self) -> &str {
+        str::from_utf8(self.0.as_ref())
+            .expect("We only construct the underlying bytes from valid UTF-8")
+    }
 }
 
 /// A single kernel command line parameter key
@@ -524,5 +548,76 @@ mod tests {
         let k1 = ParameterKey::from("a-b");
         let k2 = ParameterKey::from("a-c");
         assert_ne!(k1, k2);
+    }
+
+    #[test]
+    fn test_add_or_modify() {
+        let mut kargs = Cmdline::from("foo=bar");
+
+        // add new
+        assert!(kargs.add_or_modify(param("baz")));
+        let mut iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo=bar")));
+        assert_eq!(iter.next(), Some(param("baz")));
+        assert_eq!(iter.next(), None);
+
+        // modify existing
+        assert!(kargs.add_or_modify(param("foo=fuz")));
+        iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo=fuz")));
+        assert_eq!(iter.next(), Some(param("baz")));
+        assert_eq!(iter.next(), None);
+
+        // already exists with same value returns false and doesn't
+        // modify anything
+        assert!(!kargs.add_or_modify(param("foo=fuz")));
+        iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo=fuz")));
+        assert_eq!(iter.next(), Some(param("baz")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_add_or_modify_empty_cmdline() {
+        let mut kargs = Cmdline::from("");
+        assert!(kargs.add_or_modify(param("foo")));
+        assert_eq!(kargs.as_ref(), "foo");
+    }
+
+    #[test]
+    fn test_add_or_modify_duplicate_parameters() {
+        let mut kargs = Cmdline::from("a=1 a=2");
+        assert!(kargs.add_or_modify(param("a=3")));
+        let mut iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("a=3")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut kargs = Cmdline::from("foo bar baz");
+
+        // remove existing
+        assert!(kargs.remove("bar".into()));
+        let mut iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo")));
+        assert_eq!(iter.next(), Some(param("baz")));
+        assert_eq!(iter.next(), None);
+
+        // doesn't exist? returns false and doesn't modify anything
+        assert!(!kargs.remove("missing".into()));
+        iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo")));
+        assert_eq!(iter.next(), Some(param("baz")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_remove_duplicates() {
+        let mut kargs = Cmdline::from("a=1 b=2 a=3");
+        assert!(kargs.remove("a".into()));
+        let mut iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("b=2")));
+        assert_eq!(iter.next(), None);
     }
 }
