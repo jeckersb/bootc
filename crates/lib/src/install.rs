@@ -62,7 +62,7 @@ use crate::spec::ImageReference;
 use crate::store::Storage;
 use crate::task::Task;
 use crate::utils::sigpolicy_from_opt;
-use bootc_kernel_cmdline::Cmdline;
+use bootc_kernel_cmdline::{bytes, utf8};
 use bootc_mount::Filesystem;
 
 /// The toplevel boot directory
@@ -83,6 +83,10 @@ const SELINUXFS: &str = "/sys/fs/selinux";
 /// The mount path for uefi
 const EFIVARFS: &str = "/sys/firmware/efi/efivars";
 pub(crate) const ARCH_USES_EFI: bool = cfg!(any(target_arch = "x86_64", target_arch = "aarch64"));
+/// This is used by dracut.
+pub const INITRD_ARG_PREFIX: &str = "rd.";
+/// The kernel argument for configuring the rootfs flags.
+pub const ROOTFLAGS: &str = "rootflags";
 
 const DEFAULT_REPO_CONFIG: &[(&str, &str)] = &[
     // Default to avoiding grub2-mkconfig etc.
@@ -1653,22 +1657,24 @@ struct RootMountInfo {
 
 /// Discover how to mount the root filesystem, using existing kernel arguments and information
 /// about the root mount.
-fn find_root_args_to_inherit(cmdline: &Cmdline, root_info: &Filesystem) -> Result<RootMountInfo> {
-    let root = cmdline
-        .value_of_utf8("root")
-        .context("Parsing root= karg")?;
+fn find_root_args_to_inherit(
+    cmdline: &bytes::Cmdline,
+    root_info: &Filesystem,
+) -> Result<RootMountInfo> {
     // If we have a root= karg, then use that
+    let root = cmdline
+        .find_utf8("root")?
+        .and_then(|p| p.value().map(|p| p.to_string()));
     let (mount_spec, kargs) = if let Some(root) = root {
-        let rootflags = cmdline.find_str(bootc_kernel_cmdline::ROOTFLAGS);
-        let inherit_kargs =
-            cmdline.find_all_starting_with_str(bootc_kernel_cmdline::INITRD_ARG_PREFIX);
+        let rootflags = cmdline.find(ROOTFLAGS);
+        let inherit_kargs = cmdline.find_all_starting_with(INITRD_ARG_PREFIX);
         (
-            root.to_owned(),
+            root,
             rootflags
                 .into_iter()
                 .chain(inherit_kargs)
-                .map(|p| p.as_ref().to_owned())
-                .collect(),
+                .map(|p| utf8::Parameter::try_from(p).map(|p| p.to_string()))
+                .collect::<Result<Vec<_>, _>>()?,
         )
     } else {
         let uuid = root_info
@@ -1836,7 +1842,7 @@ pub(crate) async fn install_to_filesystem(
         }
     } else if targeting_host_root {
         // In the to-existing-root case, look at /proc/cmdline
-        let cmdline = Cmdline::from_proc()?;
+        let cmdline = bytes::Cmdline::from_proc()?;
         find_root_args_to_inherit(&cmdline, &inspect)?
     } else {
         // Otherwise, gather metadata from the provided root and use its provided UUID as a
@@ -2089,18 +2095,42 @@ mod tests {
             uuid: Some("965eb3c7-5a3f-470d-aaa2-1bcf04334bc6".into()),
             children: None,
         };
-        let kargs = Cmdline::from("");
+        let kargs = bytes::Cmdline::from("");
         let r = find_root_args_to_inherit(&kargs, &inspect).unwrap();
         assert_eq!(r.mount_spec, "UUID=965eb3c7-5a3f-470d-aaa2-1bcf04334bc6");
 
-        let kargs =
-            Cmdline::from("root=/dev/mapper/root rw someother=karg rd.lvm.lv=root systemd.debug=1");
+        let kargs = bytes::Cmdline::from(
+            "root=/dev/mapper/root rw someother=karg rd.lvm.lv=root systemd.debug=1",
+        );
 
         // In this case we take the root= from the kernel cmdline
         let r = find_root_args_to_inherit(&kargs, &inspect).unwrap();
         assert_eq!(r.mount_spec, "/dev/mapper/root");
         assert_eq!(r.kargs.len(), 1);
         assert_eq!(r.kargs[0], "rd.lvm.lv=root");
+
+        // non-UTF8 data in non-essential parts of the cmdline should be ignored
+        let kargs = bytes::Cmdline::from(
+            b"root=/dev/mapper/root rw non-utf8=\xff rd.lvm.lv=root systemd.debug=1",
+        );
+        let r = find_root_args_to_inherit(&kargs, &inspect).unwrap();
+        assert_eq!(r.mount_spec, "/dev/mapper/root");
+        assert_eq!(r.kargs.len(), 1);
+        assert_eq!(r.kargs[0], "rd.lvm.lv=root");
+
+        // non-UTF8 data in `root` should fail
+        let kargs = bytes::Cmdline::from(
+            b"root=/dev/mapper/ro\xffot rw non-utf8=\xff rd.lvm.lv=root systemd.debug=1",
+        );
+        let r = find_root_args_to_inherit(&kargs, &inspect);
+        assert!(r.is_err());
+
+        // non-UTF8 data in `rd.` should fail
+        let kargs = bytes::Cmdline::from(
+            b"root=/dev/mapper/root rw non-utf8=\xff rd.lvm.lv=ro\xffot systemd.debug=1",
+        );
+        let r = find_root_args_to_inherit(&kargs, &inspect);
+        assert!(r.is_err());
     }
 
     // As this is a unit test we don't try to test mountpoints, just verify
