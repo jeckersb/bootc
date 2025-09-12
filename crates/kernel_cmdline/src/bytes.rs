@@ -138,7 +138,7 @@ impl<'a> Cmdline<'a> {
     ///
     /// Returns `false` if the parameter already existed with the same
     /// content.
-    pub fn add_or_modify(&mut self, param: Parameter) -> bool {
+    pub fn add_or_modify(&mut self, param: &Parameter) -> bool {
         let mut new_params = Vec::new();
         let mut modified = false;
         let mut seen_key = false;
@@ -148,7 +148,7 @@ impl<'a> Cmdline<'a> {
                 if !seen_key {
                     // This is the first time we've seen this key.
                     // We will replace it with the new parameter.
-                    if p != param {
+                    if p != *param {
                         modified = true;
                     }
                     new_params.push(param.parameter);
@@ -184,12 +184,12 @@ impl<'a> Cmdline<'a> {
     /// Remove parameter(s) with the given key from the command line
     ///
     /// Returns `true` if parameter(s) were removed.
-    pub fn remove(&mut self, key: ParameterKey) -> bool {
+    pub fn remove(&mut self, key: &ParameterKey) -> bool {
         let mut removed = false;
         let mut new_params = Vec::new();
 
         for p in self.iter() {
-            if p.key == key {
+            if p.key == *key {
                 removed = true;
             } else {
                 new_params.push(p.parameter);
@@ -633,14 +633,14 @@ mod tests {
         let mut kargs = Cmdline::from(b"foo=bar");
 
         // add new
-        assert!(kargs.add_or_modify(param("baz")));
+        assert!(kargs.add_or_modify(&param("baz")));
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("foo=bar")));
         assert_eq!(iter.next(), Some(param("baz")));
         assert_eq!(iter.next(), None);
 
         // modify existing
-        assert!(kargs.add_or_modify(param("foo=fuz")));
+        assert!(kargs.add_or_modify(&param("foo=fuz")));
         iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("foo=fuz")));
         assert_eq!(iter.next(), Some(param("baz")));
@@ -648,7 +648,7 @@ mod tests {
 
         // already exists with same value returns false and doesn't
         // modify anything
-        assert!(!kargs.add_or_modify(param("foo=fuz")));
+        assert!(!kargs.add_or_modify(&param("foo=fuz")));
         iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("foo=fuz")));
         assert_eq!(iter.next(), Some(param("baz")));
@@ -658,14 +658,14 @@ mod tests {
     #[test]
     fn test_add_or_modify_empty_cmdline() {
         let mut kargs = Cmdline::from(b"");
-        assert!(kargs.add_or_modify(param("foo")));
+        assert!(kargs.add_or_modify(&param("foo")));
         assert_eq!(kargs.0, b"foo".as_slice());
     }
 
     #[test]
     fn test_add_or_modify_duplicate_parameters() {
         let mut kargs = Cmdline::from(b"a=1 a=2");
-        assert!(kargs.add_or_modify(param("a=3")));
+        assert!(kargs.add_or_modify(&param("a=3")));
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("a=3")));
         assert_eq!(iter.next(), None);
@@ -676,14 +676,14 @@ mod tests {
         let mut kargs = Cmdline::from(b"foo bar baz");
 
         // remove existing
-        assert!(kargs.remove("bar".into()));
+        assert!(kargs.remove(&"bar".into()));
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("foo")));
         assert_eq!(iter.next(), Some(param("baz")));
         assert_eq!(iter.next(), None);
 
         // doesn't exist? returns false and doesn't modify anything
-        assert!(!kargs.remove("missing".into()));
+        assert!(!kargs.remove(&"missing".into()));
         iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("foo")));
         assert_eq!(iter.next(), Some(param("baz")));
@@ -693,7 +693,7 @@ mod tests {
     #[test]
     fn test_remove_duplicates() {
         let mut kargs = Cmdline::from(b"a=1 b=2 a=3");
-        assert!(kargs.remove("a".into()));
+        assert!(kargs.remove(&"a".into()));
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("b=2")));
         assert_eq!(iter.next(), None);
