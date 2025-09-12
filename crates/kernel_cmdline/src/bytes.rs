@@ -77,7 +77,7 @@ impl<'a> Cmdline<'a> {
     ///
     /// Returns the first parameter matching the given key, or `None` if not found.
     /// Key comparison treats dashes and underscores as equivalent.
-    pub fn find(&'a self, key: impl AsRef<[u8]>) -> Option<Parameter<'a>> {
+    pub fn find<T: AsRef<[u8]> + ?Sized>(&'a self, key: &T) -> Option<Parameter<'a>> {
         let key = ParameterKey(key.as_ref());
         self.iter().find(|p| p.key == key)
     }
@@ -90,7 +90,10 @@ impl<'a> Cmdline<'a> {
     /// Otherwise, returns the first parameter matching the given key,
     /// or `None` if not found.  Key comparison treats dashes and
     /// underscores as equivalent.
-    pub fn find_utf8(&'a self, key: impl AsRef<str>) -> Result<Option<utf8::Parameter<'a>>> {
+    pub fn find_utf8<T: AsRef<[u8]> + ?Sized>(
+        &'a self,
+        key: &T,
+    ) -> Result<Option<utf8::Parameter<'a>>> {
         let bytes = match self.find(key.as_ref()) {
             Some(p) => p,
             None => return Ok(None),
@@ -114,14 +117,14 @@ impl<'a> Cmdline<'a> {
     ///
     /// Returns the first value matching the given key, or `None` if not found.
     /// Key comparison treats dashes and underscores as equivalent.
-    pub fn value_of(&'a self, key: impl AsRef<[u8]>) -> Option<&'a [u8]> {
-        self.find(key).and_then(|p| p.value)
+    pub fn value_of<T: AsRef<[u8]> + ?Sized>(&'a self, key: &T) -> Option<&'a [u8]> {
+        self.find(&key).and_then(|p| p.value)
     }
 
     /// Find the value of the kernel argument with the provided name, which must be present.
     ///
     /// Otherwise the same as [`Self::value_of`].
-    pub fn require_value_of(&'a self, key: impl AsRef<[u8]>) -> Result<&'a [u8]> {
+    pub fn require_value_of<T: AsRef<[u8]> + ?Sized>(&'a self, key: &T) -> Result<&'a [u8]> {
         let key = key.as_ref();
         self.value_of(key).ok_or_else(|| {
             let key = String::from_utf8_lossy(key);
@@ -273,8 +276,8 @@ impl<'a> Parameter<'a> {
     ///
     /// Any remaining bytes not consumed from the input are returned
     /// as the second tuple item.
-    pub fn parse(input: &'a [u8]) -> (Option<Self>, &'a [u8]) {
-        let input = input.trim_ascii_start();
+    pub fn parse<T: AsRef<[u8]> + ?Sized>(input: &'a T) -> (Option<Self>, &'a [u8]) {
+        let input = input.as_ref().trim_ascii_start();
 
         if input.is_empty() {
             return (None, input);

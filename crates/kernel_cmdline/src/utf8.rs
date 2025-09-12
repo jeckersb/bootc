@@ -72,7 +72,7 @@ impl<'a> Cmdline<'a> {
     ///
     /// Returns the first parameter matching the given key, or `None` if not found.
     /// Key comparison treats dashes and underscores as equivalent.
-    pub fn find(&'a self, key: impl AsRef<str>) -> Option<Parameter<'a>> {
+    pub fn find<T: AsRef<str> + ?Sized>(&'a self, key: &T) -> Option<Parameter<'a>> {
         let key = ParameterKey::from(key.as_ref());
         self.iter().find(|p| p.key() == key)
     }
@@ -80,18 +80,19 @@ impl<'a> Cmdline<'a> {
     /// Find all kernel arguments starting with the given UTF-8 prefix.
     ///
     /// This is a variant of [`Self::find`].
-    pub fn find_all_starting_with(
+    pub fn find_all_starting_with<T: AsRef<str> + ?Sized>(
         &'a self,
-        prefix: &'a str,
+        prefix: &'a T,
     ) -> impl Iterator<Item = Parameter<'a>> + 'a {
-        self.iter().filter(move |p| p.key().starts_with(prefix))
+        self.iter()
+            .filter(move |p| p.key().starts_with(prefix.as_ref()))
     }
 
     /// Locate the value of the kernel argument with the given key name.
     ///
     /// Returns the first value matching the given key, or `None` if not found.
     /// Key comparison treats dashes and underscores as equivalent.
-    pub fn value_of(&'a self, key: impl AsRef<str>) -> Option<&'a str> {
+    pub fn value_of<T: AsRef<str> + ?Sized>(&'a self, key: &T) -> Option<&'a str> {
         self.0.value_of(key.as_ref().as_bytes()).map(|v| {
             // SAFETY: We know this is valid UTF-8 since we only
             // construct the underlying `bytes` from valid UTF-8
@@ -102,7 +103,7 @@ impl<'a> Cmdline<'a> {
     /// Find the value of the kernel argument with the provided name, which must be present.
     ///
     /// Otherwise the same as [`Self::value_of`].
-    pub fn require_value_of(&'a self, key: impl AsRef<str>) -> Result<&'a str> {
+    pub fn require_value_of<T: AsRef<str> + ?Sized>(&'a self, key: &T) -> Result<&'a str> {
         let key = key.as_ref();
         self.value_of(key)
             .ok_or_else(|| anyhow::anyhow!("Failed to find kernel argument '{key}'"))
@@ -159,9 +160,9 @@ impl<'a> ParameterKey<'a> {
     }
 }
 
-impl<'a> From<&'a str> for ParameterKey<'a> {
-    fn from(input: &'a str) -> Self {
-        Self(bytes::ParameterKey(input.as_bytes()))
+impl<'a, T: AsRef<str> + ?Sized> From<&'a T> for ParameterKey<'a> {
+    fn from(input: &'a T) -> Self {
+        Self(bytes::ParameterKey(input.as_ref().as_bytes()))
     }
 }
 
@@ -197,8 +198,8 @@ impl<'a> Parameter<'a> {
     ///
     /// Any remaining characters not consumed from the input are
     /// returned as the second tuple item.
-    pub fn parse(input: &'a str) -> (Option<Self>, &'a str) {
-        let (bytes, rest) = bytes::Parameter::parse(input.as_bytes());
+    pub fn parse<T: AsRef<str> + ?Sized>(input: &'a T) -> (Option<Self>, &'a str) {
+        let (bytes, rest) = bytes::Parameter::parse(input.as_ref().as_bytes());
 
         // SAFETY: we know this is valid UTF-8 since input is &str,
         // and `rest` is a subslice of that &str which was split on
