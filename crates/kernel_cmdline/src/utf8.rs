@@ -134,6 +134,13 @@ impl<'a> AsRef<str> for Cmdline<'a> {
     }
 }
 
+impl<'a> std::fmt::Display for Cmdline<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let as_str: &str = self.as_ref();
+        write!(f, "{as_str}")
+    }
+}
+
 /// A single kernel command line parameter key
 ///
 /// Handles quoted values and treats dashes and underscores in keys as equivalent.
