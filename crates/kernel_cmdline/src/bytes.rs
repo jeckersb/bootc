@@ -43,7 +43,7 @@ impl<'a> Iterator for CmdlineIter<'a> {
     type Item = Parameter<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (param, rest) = Parameter::parse(self.0);
+        let (param, rest) = Parameter::parse_one(self.0);
         self.0 = rest;
         param
     }
@@ -269,6 +269,18 @@ impl<'a> Parameter<'a> {
     /// Attempt to parse a single command line parameter from a slice
     /// of bytes.
     ///
+    /// Returns `Some(Parameter)`, or `None` if a Parameter could not
+    /// be constructed from the input.  This occurs when the input is
+    /// either empty or contains only whitespace.
+    ///
+    /// Any remaining bytes not consumed from the input are discarded.
+    pub fn parse<T: AsRef<[u8]> + ?Sized>(input: &'a T) -> Option<Self> {
+        Self::parse_one(input).0
+    }
+
+    /// Attempt to parse a single command line parameter from a slice
+    /// of bytes.
+    ///
     /// The first tuple item contains the parsed parameter, or `None`
     /// if a Parameter could not be constructed from the input.  This
     /// occurs when the input is either empty or contains only
@@ -276,7 +288,7 @@ impl<'a> Parameter<'a> {
     ///
     /// Any remaining bytes not consumed from the input are returned
     /// as the second tuple item.
-    pub fn parse<T: AsRef<[u8]> + ?Sized>(input: &'a T) -> (Option<Self>, &'a [u8]) {
+    pub fn parse_one<T: AsRef<[u8]> + ?Sized>(input: &'a T) -> (Option<Self>, &'a [u8]) {
         let input = input.as_ref().trim_ascii_start();
 
         if input.is_empty() {
@@ -355,33 +367,33 @@ mod tests {
 
     // convenience methods for tests
     fn param(s: &str) -> Parameter<'_> {
-        Parameter::parse(s.as_bytes()).0.unwrap()
+        Parameter::parse(s.as_bytes()).unwrap()
     }
 
     fn param_utf8(s: &str) -> utf8::Parameter<'_> {
-        utf8::Parameter::parse(s).0.unwrap()
+        utf8::Parameter::parse(s).unwrap()
     }
 
     #[test]
-    fn test_parameter_parse() {
-        let (p, rest) = Parameter::parse(b"foo");
+    fn test_parameter_parse_one() {
+        let (p, rest) = Parameter::parse_one(b"foo");
         let p = p.unwrap();
         assert_eq!(p.key.0, b"foo");
         assert_eq!(p.value, None);
         assert_eq!(rest, "".as_bytes());
 
         // should consume one parameter and return the rest of the input
-        let (p, rest) = Parameter::parse(b"foo=bar baz");
+        let (p, rest) = Parameter::parse_one(b"foo=bar baz");
         let p = p.unwrap();
         assert_eq!(p.key.0, b"foo");
         assert_eq!(p.value, Some(b"bar".as_slice()));
         assert_eq!(rest, " baz".as_bytes());
 
         // should return None on empty or whitespace inputs
-        let (p, rest) = Parameter::parse(b"");
+        let (p, rest) = Parameter::parse_one(b"");
         assert!(p.is_none());
         assert_eq!(rest, b"".as_slice());
-        let (p, rest) = Parameter::parse(b"   ");
+        let (p, rest) = Parameter::parse_one(b"   ");
         assert!(p.is_none());
         assert_eq!(rest, b"".as_slice());
     }
@@ -418,7 +430,7 @@ mod tests {
 
     #[test]
     fn test_parameter_internal_key_whitespace() {
-        let (p, rest) = Parameter::parse("foo bar=baz".as_bytes());
+        let (p, rest) = Parameter::parse_one("foo bar=baz".as_bytes());
         let p = p.unwrap();
         assert_eq!(p.key.0, b"foo");
         assert_eq!(p.value, None);
@@ -444,8 +456,7 @@ mod tests {
         assert!(failed_conversion.is_err());
         let mut p = b"foo=".to_vec();
         p.push(non_utf8_byte[0]);
-        let (p, _rest) = Parameter::parse(&p);
-        let p = p.unwrap();
+        let p = Parameter::parse(&p).unwrap();
         assert_eq!(p.value, Some(non_utf8_byte.as_slice()));
     }
 

@@ -198,6 +198,19 @@ impl<'a> Parameter<'a> {
     /// Attempt to parse a single command line parameter from a UTF-8
     /// string.
     ///
+    /// Returns `Some(Parameter)`, or `None` if a Parameter could not
+    /// be constructed from the input.  This occurs when the input is
+    /// either empty or contains only whitespace.
+    ///
+    /// Any remaining characters not consumed from the input are
+    /// discarded.
+    pub fn parse<T: AsRef<str> + ?Sized>(input: &'a T) -> Option<Self> {
+        Self::parse_one(input).0
+    }
+
+    /// Attempt to parse a single command line parameter from a UTF-8
+    /// string.
+    ///
     /// The first tuple item contains the parsed parameter, or `None`
     /// if a Parameter could not be constructed from the input.  This
     /// occurs when the input is either empty or contains only
@@ -205,8 +218,8 @@ impl<'a> Parameter<'a> {
     ///
     /// Any remaining characters not consumed from the input are
     /// returned as the second tuple item.
-    pub fn parse<T: AsRef<str> + ?Sized>(input: &'a T) -> (Option<Self>, &'a str) {
-        let (bytes, rest) = bytes::Parameter::parse(input.as_ref().as_bytes());
+    pub fn parse_one<T: AsRef<str> + ?Sized>(input: &'a T) -> (Option<Self>, &'a str) {
+        let (bytes, rest) = bytes::Parameter::parse_one(input.as_ref().as_bytes());
 
         // SAFETY: we know this is valid UTF-8 since input is &str,
         // and `rest` is a subslice of that &str which was split on
@@ -288,29 +301,29 @@ mod tests {
 
     // convenience method for tests
     fn param(s: &str) -> Parameter<'_> {
-        Parameter::parse(s).0.unwrap()
+        Parameter::parse(s).unwrap()
     }
 
     #[test]
-    fn test_parameter_parse() {
-        let (p, rest) = Parameter::parse("foo");
+    fn test_parameter_parse_one() {
+        let (p, rest) = Parameter::parse_one("foo");
         let p = p.unwrap();
         assert_eq!(p.key(), "foo".into());
         assert_eq!(p.value(), None);
         assert_eq!(rest, "");
 
         // should consume one parameter and return the rest of the input
-        let (p, rest) = Parameter::parse("foo=bar baz");
+        let (p, rest) = Parameter::parse_one("foo=bar baz");
         let p = p.unwrap();
         assert_eq!(p.key(), "foo".into());
         assert_eq!(p.value(), Some("bar"));
         assert_eq!(rest, " baz");
 
         // should return None on empty or whitespace inputs
-        let (p, rest) = Parameter::parse("");
+        let (p, rest) = Parameter::parse_one("");
         assert!(p.is_none());
         assert_eq!(rest, "");
-        let (p, rest) = Parameter::parse("   ");
+        let (p, rest) = Parameter::parse_one("   ");
         assert!(p.is_none());
         assert_eq!(rest, "");
     }
@@ -341,7 +354,7 @@ mod tests {
 
     #[test]
     fn test_parameter_internal_key_whitespace() {
-        let (p, rest) = Parameter::parse("foo bar=baz");
+        let (p, rest) = Parameter::parse_one("foo bar=baz");
         let p = p.unwrap();
         assert_eq!(p.key(), "foo".into());
         assert_eq!(p.value(), None);
@@ -393,19 +406,19 @@ mod tests {
     #[test]
     fn test_parameter_tryfrom() {
         // ok switch
-        let p = bytes::Parameter::parse(b"foo").0.unwrap();
+        let p = bytes::Parameter::parse(b"foo").unwrap();
         let utf = Parameter::try_from(p).unwrap();
         assert_eq!(utf.key(), "foo".into());
         assert_eq!(utf.value(), None);
 
         // ok key/value
-        let p = bytes::Parameter::parse(b"foo=bar").0.unwrap();
+        let p = bytes::Parameter::parse(b"foo=bar").unwrap();
         let utf = Parameter::try_from(p).unwrap();
         assert_eq!(utf.key(), "foo".into());
         assert_eq!(utf.value(), Some("bar".into()));
 
         // bad switch
-        let p = bytes::Parameter::parse(b"f\xffoo").0.unwrap();
+        let p = bytes::Parameter::parse(b"f\xffoo").unwrap();
         let e = Parameter::try_from(p);
         assert_eq!(
             e.unwrap_err().to_string(),
@@ -413,7 +426,7 @@ mod tests {
         );
 
         // bad key/value
-        let p = bytes::Parameter::parse(b"foo=b\xffar").0.unwrap();
+        let p = bytes::Parameter::parse(b"foo=b\xffar").unwrap();
         let e = Parameter::try_from(p);
         assert_eq!(
             e.unwrap_err().to_string(),
