@@ -940,6 +940,135 @@ impl ImageImporter {
         })
     }
 
+    /// Generate a single ostree commit that combines all layers, and also
+    /// includes container image metadata such as the manifest and config.
+    fn write_merge_commit_impl(
+        repo: &ostree::Repo,
+        base_commit: Option<&str>,
+        layer_commits: &[String],
+        have_derived_layers: bool,
+        metadata: glib::Variant,
+        timestamp: u64,
+        ostree_ref: &str,
+        no_imgref: bool,
+        disable_gc: bool,
+        cancellable: Option<&gio::Cancellable>,
+    ) -> Result<Box<LayeredImageState>> {
+        use rustix::fd::AsRawFd;
+
+        let txn = repo.auto_transaction(cancellable)?;
+
+        let devino = ostree::RepoDevInoCache::new();
+        let repodir = Dir::reopen_dir(&repo.dfd_borrow())?;
+        let repo_tmp = repodir.open_dir("tmp")?;
+        let td = cap_std_ext::cap_tempfile::TempDir::new_in(&repo_tmp)?;
+
+        let rootpath = "root";
+        let checkout_mode = if repo.mode() == ostree::RepoMode::Bare {
+            ostree::RepoCheckoutMode::None
+        } else {
+            ostree::RepoCheckoutMode::User
+        };
+        let mut checkout_opts = ostree::RepoCheckoutAtOptions {
+            mode: checkout_mode,
+            overwrite_mode: ostree::RepoCheckoutOverwriteMode::UnionFiles,
+            devino_to_csum_cache: Some(devino.clone()),
+            no_copy_fallback: true,
+            force_copy_zerosized: true,
+            process_whiteouts: false,
+            ..Default::default()
+        };
+        if let Some(base) = base_commit.as_ref() {
+            repo.checkout_at(
+                Some(&checkout_opts),
+                (*td).as_raw_fd(),
+                rootpath,
+                &base,
+                cancellable,
+            )
+            .context("Checking out base commit")?;
+        }
+
+        // Layer all subsequent commits
+        checkout_opts.process_whiteouts = true;
+        for commit in layer_commits {
+            tracing::debug!("Unpacking {commit}");
+            repo.checkout_at(
+                Some(&checkout_opts),
+                (*td).as_raw_fd(),
+                rootpath,
+                &commit,
+                cancellable,
+            )
+            .with_context(|| format!("Checking out layer {commit}"))?;
+        }
+
+        let root_dir = td.open_dir(rootpath)?;
+
+        let modifier =
+            ostree::RepoCommitModifier::new(ostree::RepoCommitModifierFlags::empty(), None);
+        modifier.set_devino_cache(&devino);
+        // If we have derived layers, then we need to handle the case where
+        // the derived layers include custom policy. Just relabel everything
+        // in this case.
+        if have_derived_layers {
+            let sepolicy = ostree::SePolicy::new_at(root_dir.as_raw_fd(), cancellable)?;
+            tracing::debug!("labeling from merged tree");
+            modifier.set_sepolicy(Some(&sepolicy));
+        } else if let Some(base) = base_commit.as_ref() {
+            tracing::debug!("labeling from base tree");
+            // TODO: We can likely drop this; we know all labels should be pre-computed.
+            modifier.set_sepolicy_from_commit(repo, &base, cancellable)?;
+        } else {
+            panic!("Unexpected state: no derived layers and no base")
+        }
+
+        cleanup_root(&root_dir)?;
+
+        let mt = ostree::MutableTree::new();
+        repo.write_dfd_to_mtree(
+            (*td).as_raw_fd(),
+            rootpath,
+            &mt,
+            Some(&modifier),
+            cancellable,
+        )
+        .context("Writing merged filesystem to mtree")?;
+
+        let merged_root = repo
+            .write_mtree(&mt, cancellable)
+            .context("Writing mtree")?;
+        let merged_root = merged_root.downcast::<ostree::RepoFile>().unwrap();
+        // The merge has the base commit as a parent, if it exists. See
+        // https://github.com/ostreedev/ostree/pull/3523
+        let parent = base_commit.as_deref();
+        let merged_commit = repo
+            .write_commit_with_time(
+                parent,
+                None,
+                None,
+                Some(&metadata),
+                &merged_root,
+                timestamp,
+                cancellable,
+            )
+            .context("Writing commit")?;
+        if !no_imgref {
+            repo.transaction_set_ref(None, ostree_ref, Some(merged_commit.as_str()));
+        }
+        txn.commit(cancellable)?;
+
+        if !disable_gc {
+            let n: u32 = gc_image_layers_impl(repo, cancellable)?;
+            tracing::debug!("pruned {n} layers");
+        }
+
+        // Here we re-query state just to run through the same code path,
+        // though it'd be cheaper to synthesize it from the data we already have.
+        let state = query_image_commit(repo, &merged_commit)?;
+        Ok(state)
+    }
+
     /// Import a layered container image.
     ///
     /// If enabled, this will also prune unused container image layers.
@@ -1080,121 +1209,18 @@ impl ImageImporter {
         let repo = self.repo;
         let mut state = crate::tokio_util::spawn_blocking_cancellable_flatten(
             move |cancellable| -> Result<Box<LayeredImageState>> {
-                use rustix::fd::AsRawFd;
-
-                let cancellable = Some(cancellable);
-                let repo = &repo;
-                let txn = repo.auto_transaction(cancellable)?;
-
-                let devino = ostree::RepoDevInoCache::new();
-                let repodir = Dir::reopen_dir(&repo.dfd_borrow())?;
-                let repo_tmp = repodir.open_dir("tmp")?;
-                let td = cap_std_ext::cap_tempfile::TempDir::new_in(&repo_tmp)?;
-
-                let rootpath = "root";
-                let checkout_mode = if repo.mode() == ostree::RepoMode::Bare {
-                    ostree::RepoCheckoutMode::None
-                } else {
-                    ostree::RepoCheckoutMode::User
-                };
-                let mut checkout_opts = ostree::RepoCheckoutAtOptions {
-                    mode: checkout_mode,
-                    overwrite_mode: ostree::RepoCheckoutOverwriteMode::UnionFiles,
-                    devino_to_csum_cache: Some(devino.clone()),
-                    no_copy_fallback: true,
-                    force_copy_zerosized: true,
-                    process_whiteouts: false,
-                    ..Default::default()
-                };
-                if let Some(base) = base_commit.as_ref() {
-                    repo.checkout_at(
-                        Some(&checkout_opts),
-                        (*td).as_raw_fd(),
-                        rootpath,
-                        &base,
-                        cancellable,
-                    )
-                    .context("Checking out base commit")?;
-                }
-
-                // Layer all subsequent commits
-                checkout_opts.process_whiteouts = true;
-                for commit in layer_commits {
-                    tracing::debug!("Unpacking {commit}");
-                    repo.checkout_at(
-                        Some(&checkout_opts),
-                        (*td).as_raw_fd(),
-                        rootpath,
-                        &commit,
-                        cancellable,
-                    )
-                    .with_context(|| format!("Checking out layer {commit}"))?;
-                }
-
-                let root_dir = td.open_dir(rootpath)?;
-
-                let modifier =
-                    ostree::RepoCommitModifier::new(ostree::RepoCommitModifierFlags::empty(), None);
-                modifier.set_devino_cache(&devino);
-                // If we have derived layers, then we need to handle the case where
-                // the derived layers include custom policy. Just relabel everything
-                // in this case.
-                if have_derived_layers {
-                    let sepolicy = ostree::SePolicy::new_at(root_dir.as_raw_fd(), cancellable)?;
-                    tracing::debug!("labeling from merged tree");
-                    modifier.set_sepolicy(Some(&sepolicy));
-                } else if let Some(base) = base_commit.as_ref() {
-                    tracing::debug!("labeling from base tree");
-                    // TODO: We can likely drop this; we know all labels should be pre-computed.
-                    modifier.set_sepolicy_from_commit(repo, &base, cancellable)?;
-                } else {
-                    unreachable!()
-                }
-
-                cleanup_root(&root_dir)?;
-
-                let mt = ostree::MutableTree::new();
-                repo.write_dfd_to_mtree(
-                    (*td).as_raw_fd(),
-                    rootpath,
-                    &mt,
-                    Some(&modifier),
-                    cancellable,
+                Self::write_merge_commit_impl(
+                    &repo,
+                    base_commit.as_deref(),
+                    &layer_commits,
+                    have_derived_layers,
+                    metadata,
+                    timestamp,
+                    &ostree_ref,
+                    self.no_imgref,
+                    self.disable_gc,
+                    Some(cancellable),
                 )
-                .context("Writing merged filesystem to mtree")?;
-
-                let merged_root = repo
-                    .write_mtree(&mt, cancellable)
-                    .context("Writing mtree")?;
-                let merged_root = merged_root.downcast::<ostree::RepoFile>().unwrap();
-                // The merge has the base commit as a parent, if it exists. See
-                // https://github.com/ostreedev/ostree/pull/3523
-                let parent = base_commit.as_deref();
-                let merged_commit = repo
-                    .write_commit_with_time(
-                        parent,
-                        None,
-                        None,
-                        Some(&metadata),
-                        &merged_root,
-                        timestamp,
-                        cancellable,
-                    )
-                    .context("Writing commit")?;
-                if !self.no_imgref {
-                    repo.transaction_set_ref(None, &ostree_ref, Some(merged_commit.as_str()));
-                }
-                txn.commit(cancellable)?;
-
-                if !self.disable_gc {
-                    let n: u32 = gc_image_layers_impl(repo, cancellable)?;
-                    tracing::debug!("pruned {n} layers");
-                }
-
-                // Here we re-query state just to run through the same code path,
-                // though it'd be cheaper to synthesize it from the data we already have.
-                let state = query_image_commit(repo, &merged_commit)?;
-                Ok(state)
             },
         )
         .await?;
