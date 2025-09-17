@@ -62,7 +62,7 @@ system do it).
 
 Relevant links:
 
-- [bootc rollback](../man/bootc-rollback.md)
+- [bootc rollback](../man/bootc-rollback.8.md)
 - [CentOS Automotive SIG unattended updates](https://sigs.centos.org/automotive/building/unattended_updates/#watchdog-in-qemu)
   (note that as of right now, greenboot does not yet integrate with bootc)
 - <https://systemd.io/AUTOMATIC_BOOT_ASSESSMENT/>

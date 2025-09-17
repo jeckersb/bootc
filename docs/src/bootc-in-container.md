@@ -12,7 +12,7 @@ There are only two supported operations in a container environment today:
 
 - `bootc status`: This can reliably be used to detect whether the system is
   actually booted via bootc or not.
-- `bootc container lint`: See [man/bootc-container-lint.md](man/bootc-container-lint.md).
+- `bootc container lint`: See [man/bootc-container-lint.8.md](man/bootc-container-lint.8.md).
 
 ### Testing bootc in a container
 
