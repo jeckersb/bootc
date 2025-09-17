@@ -13,6 +13,7 @@ pub struct CliOption {
     pub help: String,
     pub possible_values: Vec<String>,
     pub required: bool,
+    pub is_boolean: bool,
 }
 
 /// Representation of a CLI command for JSON export
@@ -73,16 +74,27 @@ pub fn command_to_json(cmd: &Command) -> CliCommand {
 
             let help = arg.get_help().map(|h| h.to_string()).unwrap_or_default();
 
+            // For boolean flags, don't show a value name
+            // Boolean flags use SetTrue or SetFalse actions and don't take values
+            let is_boolean = matches!(
+                arg.get_action(),
+                clap::ArgAction::SetTrue | clap::ArgAction::SetFalse
+            );
+            let value_name = if is_boolean {
+                None
+            } else {
+                arg.get_value_names()
+                    .and_then(|names| names.first())
+                    .map(|s| s.to_string())
+            };
+
             options.push(CliOption {
                 long: arg
                     .get_long()
                     .map(String::from)
                     .unwrap_or_else(|| id.to_string()),
                 short: arg.get_short().map(|c| c.to_string()),
-                value_name: arg
-                    .get_value_names()
-                    .and_then(|names| names.first())
-                    .map(|s| s.to_string()),
+                value_name,
                 default: arg
                     .get_default_values()
                     .first()
@@ -91,6 +103,7 @@ pub fn command_to_json(cmd: &Command) -> CliCommand {
                 help,
                 possible_values,
                 required: arg.is_required_set(),
+                is_boolean,
             });
         }
     }

@@ -4,7 +4,7 @@ bootc-switch - Target a new container image reference to boot
 
 # SYNOPSIS
 
-**bootc switch** [*OPTIONS...*] <*TARGET*>
+**bootc switch** \[*OPTIONS...*\] <*TARGET*>
 
 # DESCRIPTION
 
@@ -41,21 +41,13 @@ Soft reboot allows faster system restart by avoiding full hardware reboot when p
 
     This argument is required.
 
-**--quiet**=*QUIET*
+**--quiet**
 
     Don't display progress
 
-    Possible values:
-    - true
-    - false
-
-**--apply**=*APPLY*
+**--apply**
 
     Restart or reboot into the new target image
-
-    Possible values:
-    - true
-    - false
 
 **--soft-reboot**=*SOFT_REBOOT*
 
@@ -71,21 +63,13 @@ Soft reboot allows faster system restart by avoiding full hardware reboot when p
 
     Default: registry
 
-**--enforce-container-sigpolicy**=*ENFORCE_CONTAINER_SIGPOLICY*
+**--enforce-container-sigpolicy**
 
     This is the inverse of the previous `--target-no-signature-verification` (which is now a no-op)
 
-    Possible values:
-    - true
-    - false
-
-**--retain**=*RETAIN*
+**--retain**
 
     Retain reference to currently booted image
-
-    Possible values:
-    - true
-    - false
 
 <!-- END GENERATED OPTIONS -->
 

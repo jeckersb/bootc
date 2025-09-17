@@ -7,7 +7,7 @@ discover the desired root filesystem type from the container image
 
 # SYNOPSIS
 
-**bootc install print-configuration** [*OPTIONS...*]
+**bootc install print-configuration** \[*OPTIONS...*\]
 
 # DESCRIPTION
 

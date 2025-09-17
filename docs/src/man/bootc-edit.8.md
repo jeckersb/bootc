@@ -4,7 +4,7 @@ bootc-edit - Apply full changes to the host specification
 
 # SYNOPSIS
 
-**bootc edit** [*OPTIONS...*]
+**bootc edit** \[*OPTIONS...*\]
 
 # DESCRIPTION
 
@@ -26,13 +26,9 @@ Only changes to the `spec` section are honored.
 
     Use filename to edit system specification
 
-**--quiet**=*QUIET*
+**--quiet**
 
     Don't display progress
-
-    Possible values:
-    - true
-    - false
 
 <!-- END GENERATED OPTIONS -->
 

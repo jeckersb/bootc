@@ -5,7 +5,7 @@ are performing an ostree-based installation, not bootc
 
 # SYNOPSIS
 
-**bootc install ensure-completion** [*OPTIONS...*]
+**bootc install ensure-completion** \[*OPTIONS...*\]
 
 # DESCRIPTION
 
