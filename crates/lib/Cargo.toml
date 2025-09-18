@@ -8,8 +8,7 @@ repository = "https://github.com/bootc-dev/bootc"
 # project isn't actually published as a crate.
 version = "1.8.0"
 # In general we try to keep this pinned to what's in the latest RHEL9.
-# However right now, we bumped to 1.82 as that's what composefs-rs uses.
-rust-version = "1.82.0"
+rust-version = "1.84.0"
 
 include = ["/src", "LICENSE-APACHE", "LICENSE-MIT"]
 
