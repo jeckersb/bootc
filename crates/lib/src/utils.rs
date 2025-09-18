@@ -188,6 +188,63 @@ pub(crate) fn digested_pullspec(image: &str, digest: &str) -> String {
     format!("{image}@{digest}")
 }
 
+#[cfg(feature = "composefs-backend")]
+#[derive(Debug)]
+pub enum EfiError {
+    SystemNotUEFI,
+    MissingVar,
+    #[allow(dead_code)]
+    InvalidData(&'static str),
+    #[allow(dead_code)]
+    Io(std::io::Error),
+}
+
+#[cfg(feature = "composefs-backend")]
+impl From<std::io::Error> for EfiError {
+    fn from(e: std::io::Error) -> Self {
+        EfiError::Io(e)
+    }
+}
+
+#[cfg(feature = "composefs-backend")]
+pub fn read_uefi_var(var_name: &str) -> Result<String, EfiError> {
+    use crate::install::EFIVARFS;
+    use cap_std_ext::cap_std::ambient_authority;
+
+    let efivarfs = match Dir::open_ambient_dir(EFIVARFS, ambient_authority()) {
+        Ok(dir) => dir,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(EfiError::SystemNotUEFI),
+        Err(e) => Err(e)?,
+    };
+
+    match efivarfs.read(var_name) {
+        Ok(loader_bytes) => {
+            if loader_bytes.len() % 2 != 0 {
+                return Err(EfiError::InvalidData(
+                    "EFI var length is not valid UTF-16 LE",
+                ));
+            }
+
+            // EFI vars are UTF-16 LE
+            let loader_u16_bytes: Vec<u16> = loader_bytes
+                .chunks_exact(2)
+                .map(|x| u16::from_le_bytes([x[0], x[1]]))
+                .collect();
+
+            let loader = String::from_utf16(&loader_u16_bytes)
+                .map_err(|_| EfiError::InvalidData("EFI var is not UTF-16"))?;
+
+            return Ok(loader);
+        }
+
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(EfiError::MissingVar);
+        }
+
+        Err(e) => Err(e)?,
+    }
+}
+
 /// Computes a relative path from `from` to `to`.
 ///
 /// Both `from` and `to` must be absolute paths.
