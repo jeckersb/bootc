@@ -24,7 +24,7 @@ const DOCKER_TYPE_LAYER_TAR: &str = "application/vnd.docker.image.rootfs.diff.ta
 
 /// Extends the `Read` trait with another method to get mutable access to the inner reader
 trait ReadWithGetInnerMut: Read + Send + 'static {
-    fn get_inner_mut(&mut self) -> &mut (dyn Read);
+    fn get_inner_mut(&mut self) -> &mut dyn Read;
 }
 
 // TransparentDecompressor
@@ -38,7 +38,7 @@ impl<R: Read + Send + 'static> Read for TransparentDecompressor<R> {
 }
 
 impl<R: Read + Send + 'static> ReadWithGetInnerMut for TransparentDecompressor<R> {
-    fn get_inner_mut(&mut self) -> &mut (dyn Read) {
+    fn get_inner_mut(&mut self) -> &mut dyn Read {
         &mut self.0
     }
 }
@@ -54,7 +54,7 @@ impl<R: std::io::BufRead + Send + 'static> Read for GzipDecompressor<R> {
 }
 
 impl<R: std::io::BufRead + Send + 'static> ReadWithGetInnerMut for GzipDecompressor<R> {
-    fn get_inner_mut(&mut self) -> &mut (dyn Read) {
+    fn get_inner_mut(&mut self) -> &mut dyn Read {
         self.0.get_mut()
     }
 }
@@ -72,7 +72,7 @@ impl<'a: 'static, R: std::io::BufRead + Send + 'static> Read for ZstdDecompresso
 impl<'a: 'static, R: std::io::BufRead + Send + 'static> ReadWithGetInnerMut
     for ZstdDecompressor<'a, R>
 {
-    fn get_inner_mut(&mut self) -> &mut (dyn Read) {
+    fn get_inner_mut(&mut self) -> &mut dyn Read {
         self.0.get_mut()
     }
 }
