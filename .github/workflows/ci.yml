@@ -19,7 +19,6 @@ concurrency:
 
 jobs:
   tests:
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'control/skip-ci') }}
     runs-on: ubuntu-latest
     container: quay.io/coreos-assembler/fcos-buildroot:testing-devel
     steps:
@@ -43,7 +42,6 @@ jobs:
       - name: Clippy (gate on correctness and suspicous)
         run: make validate-rust
   fedora-container-tests:
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'control/skip-ci') }}
     runs-on: ubuntu-24.04
     steps:
       - name: Get a newer podman for heredoc support (from debian testing)
@@ -58,7 +56,6 @@ jobs:
       - name: Build and run container integration tests
         run: sudo just run-container-integration run-container-external-tests
   container-continuous:
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'control/skip-ci') }}
     runs-on: ubuntu-24.04
     steps:
       - name: Get a newer podman for heredoc support (from debian testing)
@@ -81,7 +78,6 @@ jobs:
         log-level: warn
         command: check -A duplicate bans sources licenses
   install-tests:
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'control/skip-ci') }}
     name: "Test install"
     # For a not-ancient podman
     runs-on: ubuntu-24.04
