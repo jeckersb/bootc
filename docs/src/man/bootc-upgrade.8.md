@@ -4,7 +4,7 @@ bootc-upgrade - Download and queue an updated container image to apply
 
 # SYNOPSIS
 
-**bootc upgrade** [*OPTIONS...*]
+**bootc upgrade** \[*OPTIONS...*\]
 
 # DESCRIPTION
 
@@ -41,29 +41,17 @@ Soft reboot allows faster system restart by avoiding full hardware reboot when p
 # OPTIONS
 
 <!-- BEGIN GENERATED OPTIONS -->
-**--quiet**=*QUIET*
+**--quiet**
 
     Don't display progress
 
-    Possible values:
-    - true
-    - false
-
-**--check**=*CHECK*
+**--check**
 
     Check if an update is available without applying it
 
-    Possible values:
-    - true
-    - false
-
-**--apply**=*APPLY*
+**--apply**
 
     Restart or reboot into the new target image
-
-    Possible values:
-    - true
-    - false
 
 **--soft-reboot**=*SOFT_REBOOT*
 

@@ -5,7 +5,7 @@ will be discarded on reboot
 
 # SYNOPSIS
 
-**bootc usr-overlay** [*OPTIONS...*]
+**bootc usr-overlay** \[*OPTIONS...*\]
 
 # DESCRIPTION
 

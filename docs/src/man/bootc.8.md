@@ -5,7 +5,7 @@ images
 
 # SYNOPSIS
 
-**bootc** [*OPTIONS...*] <*SUBCOMMAND*>
+**bootc** \[*OPTIONS...*\] <*SUBCOMMAND*>
 
 # DESCRIPTION
 

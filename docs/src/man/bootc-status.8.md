@@ -4,7 +4,7 @@ bootc-status - Display status
 
 # SYNOPSIS
 
-**bootc status** [*OPTIONS...*]
+**bootc status** \[*OPTIONS...*\]
 
 # DESCRIPTION
 
@@ -40,21 +40,13 @@ Invoke e.g. `bootc status --json`, and check if `status.booted` is not `null`.
 
     The desired format version. There is currently one supported version, which is exposed as both `0` and `1`. Pass this option to explicitly request it; it is possible that another future version 2 or newer will be supported in the future
 
-**--booted**=*BOOTED*
+**--booted**
 
     Only display status for the booted deployment
 
-    Possible values:
-    - true
-    - false
-
-**-v**, **--verbose**=*VERBOSE*
+**-v**, **--verbose**
 
     Include additional fields in human readable format
-
-    Possible values:
-    - true
-    - false
 
 <!-- END GENERATED OPTIONS -->
 

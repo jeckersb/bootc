@@ -1,5 +1,3 @@
-% bootc-status-updated.path(8)
-
 # NAME
 
 bootc-status-updated.path
@@ -16,7 +14,7 @@ update/upgrade/edit/switch/rollback operation.
 
 # SEE ALSO
 
-**bootc**(1), **bootc-status-updated.target**(8)
+**bootc**(1), **bootc-status-updated.target**(5)
 
 # VERSION
 

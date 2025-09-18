@@ -1,5 +1,3 @@
-% bootc-fetch-apply-updates(5)
-
 # NAME
 
 bootc-fetch-apply-updates.service

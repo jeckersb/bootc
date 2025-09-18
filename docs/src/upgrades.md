@@ -18,7 +18,7 @@ There is also an opinionated `bootc-fetch-apply-updates.timer` and corresponding
 service available in upstream for operating systems and distributions
 to enable.
 
-Man page: [bootc-upgrade](man/bootc-upgrade.md).
+Man page: [bootc-upgrade](man/bootc-upgrade.8.md).
 
 ## Changing the container image source
 
@@ -38,7 +38,7 @@ container image being tracked.
 This will preserve existing state in `/etc` and `/var` - for example,
 host SSH keys and home directories.
 
-Man page: [bootc-switch](man/bootc-switch.md).
+Man page: [bootc-switch](man/bootc-switch.8.md).
 
 ## Rollback
 
@@ -46,6 +46,6 @@ There is a  `bootc rollback` verb, and associated declarative interface
 accessible to tools via `bootc edit`.  This will swap the bootloader
 ordering to the previous boot entry.
 
-Man page: [bootc-rollback](man/bootc-rollback.md).
+Man page: [bootc-rollback](man/bootc-rollback.8.md).
 
 

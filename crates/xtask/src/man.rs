@@ -26,6 +26,8 @@ pub struct CliOption {
     pub possible_values: Vec<String>,
     /// Whether the option is required
     pub required: bool,
+    /// Whether this is a boolean flag
+    pub is_boolean: bool,
 }
 
 /// Represents a CLI command from the JSON dump
@@ -132,7 +134,8 @@ fn format_options_as_markdown(options: &[CliOption], positionals: &[CliPositiona
         // Add long flag
         flag_line.push_str(&format!("**--{}**", opt.long));
 
-        // Add value name if option takes argument
+        // Add value name if option takes argument (but not for boolean flags)
+        // Boolean flags are detected by having no value_name (set to None in cli_json.rs)
         if let Some(value_name) = &opt.value_name {
             flag_line.push_str(&format!("=*{}*", value_name));
         }
@@ -140,8 +143,8 @@ fn format_options_as_markdown(options: &[CliOption], positionals: &[CliPositiona
         result.push_str(&format!("{}\n\n", flag_line));
         result.push_str(&format!("    {}\n\n", opt.help));
 
-        // Add possible values for enums
-        if !opt.possible_values.is_empty() {
+        // Add possible values for enums (but not for boolean flags)
+        if !opt.possible_values.is_empty() && !opt.is_boolean {
             result.push_str("    Possible values:\n");
             for value in &opt.possible_values {
                 result.push_str(&format!("    - {}\n", value));
@@ -191,10 +194,12 @@ pub fn update_markdown_with_subcommands(
         before, begin_marker, generated_subcommands, end_marker, after
     );
 
-    fs::write(markdown_path, new_content)
-        .with_context(|| format!("Writing to {}", markdown_path))?;
-
-    println!("Updated subcommands in {}", markdown_path);
+    // Only write if content has changed to avoid updating mtime unnecessarily
+    if new_content != content {
+        fs::write(markdown_path, new_content)
+            .with_context(|| format!("Writing to {}", markdown_path))?;
+        println!("Updated subcommands in {}", markdown_path);
+    }
     Ok(())
 }
 
@@ -238,10 +243,12 @@ pub fn update_markdown_with_options(
         format!("{}\n\n{}\n{}{}", before, begin_marker, end_marker, after)
     };
 
-    fs::write(markdown_path, new_content)
-        .with_context(|| format!("Writing to {}", markdown_path))?;
-
-    println!("Updated {}", markdown_path);
+    // Only write if content has changed to avoid updating mtime unnecessarily
+    if new_content != content {
+        fs::write(markdown_path, new_content)
+            .with_context(|| format!("Writing to {}", markdown_path))?;
+        println!("Updated {}", markdown_path);
+    }
     Ok(())
 }
 
@@ -374,21 +381,6 @@ pub fn sync_all_man_pages(sh: &Shell) -> Result<()> {
     Ok(())
 }
 
-/// Test the sync workflow
-pub fn test_sync_workflow(sh: &Shell) -> Result<()> {
-    println!("🧪 Testing man page sync workflow...");
-
-    // Create a backup of current files
-    let test_dir = "target/test-sync";
-    sh.create_dir(test_dir)?;
-
-    // Run sync
-    sync_all_man_pages(sh)?;
-
-    println!("✅ Sync workflow test completed successfully");
-    Ok(())
-}
-
 /// Generate man pages from hand-written markdown sources
 pub fn generate_man_pages(sh: &Shell) -> Result<()> {
     let man_src_dir = Utf8Path::new("docs/src/man");
@@ -432,18 +424,31 @@ pub fn generate_man_pages(sh: &Shell) -> Result<()> {
         let content = fs::read_to_string(&path)?;
         let content_with_version = content.replace("<!-- VERSION PLACEHOLDER -->", &version);
 
-        // Create temporary file with version-replaced content
-        let temp_path = format!("{}.tmp", path.display());
-        fs::write(&temp_path, content_with_version)?;
+        // Check if we need to regenerate by comparing input and output modification times
+        let should_regenerate = if let (Ok(input_meta), Ok(output_meta)) =
+            (fs::metadata(&path), fs::metadata(&output_file))
+        {
+            input_meta.modified().unwrap_or(std::time::UNIX_EPOCH)
+                > output_meta.modified().unwrap_or(std::time::UNIX_EPOCH)
+        } else {
+            // If output doesn't exist or we can't get metadata, regenerate
+            true
+        };
 
-        cmd!(sh, "go-md2man -in {temp_path} -out {output_file}")
-            .run()
-            .with_context(|| format!("Converting {} to man page", path.display()))?;
+        if should_regenerate {
+            // Create temporary file with version-replaced content
+            let temp_path = format!("{}.tmp", path.display());
+            fs::write(&temp_path, content_with_version)?;
 
-        // Clean up temporary file
-        fs::remove_file(&temp_path)?;
+            cmd!(sh, "go-md2man -in {temp_path} -out {output_file}")
+                .run()
+                .with_context(|| format!("Converting {} to man page", path.display()))?;
 
-        println!("Generated {}", output_file);
+            // Clean up temporary file
+            fs::remove_file(&temp_path)?;
+
+            println!("Generated {}", output_file);
+        }
     }
 
     // Apply post-processing fixes for apostrophe handling
@@ -495,9 +500,9 @@ pub fn update_manpages(sh: &Shell) -> Result<()> {
     // Check each command and create man page if missing
     for command_parts in commands_to_check {
         let filename = if command_parts.len() == 1 {
-            format!("bootc-{}.md", command_parts[0])
+            format!("bootc-{}.8.md", command_parts[0])
         } else {
-            format!("bootc-{}.md", command_parts.join("-"))
+            format!("bootc-{}.8.md", command_parts.join("-"))
         };
 
         let filepath = format!("docs/src/man/{}", filename);
@@ -511,6 +516,23 @@ pub fn update_manpages(sh: &Shell) -> Result<()> {
                 let command_name_full = format!("bootc {}", command_parts.join(" "));
                 let command_description = cmd.about.as_deref().unwrap_or("TODO: Add description");
 
+                // Generate SYNOPSIS line with proper arguments
+                let mut synopsis = format!("**{}** \\[*OPTIONS...*\\]", command_name_full);
+
+                // Add positional arguments
+                for positional in &cmd.positionals {
+                    if positional.required {
+                        synopsis.push_str(&format!(" <*{}*>", positional.name.to_uppercase()));
+                    } else {
+                        synopsis.push_str(&format!(" \\[*{}*\\]", positional.name.to_uppercase()));
+                    }
+                }
+
+                // Add subcommand if this command has subcommands
+                if !cmd.subcommands.is_empty() {
+                    synopsis.push_str(" <*SUBCOMMAND*>");
+                }
+
                 let template = format!(
                     r#"# NAME
 
@@ -518,7 +540,7 @@ pub fn update_manpages(sh: &Shell) -> Result<()> {
 
 # SYNOPSIS
 
-**{}** [*OPTIONS*]
+{}
 
 # DESCRIPTION
 
@@ -549,19 +571,19 @@ TODO: Add practical examples showing how to use this command.
                 std::fs::write(&filepath, template)
                     .with_context(|| format!("Writing template to {}", filepath))?;
 
-                println!("✓ Created man page template: {}", filepath);
+                println!("Created man page template: {}", filepath);
                 created_count += 1;
             }
         }
     }
 
     if created_count > 0 {
-        println!("✓ Created {} new man page templates", created_count);
+        println!("Created {} new man page templates", created_count);
     } else {
-        println!("✓ All commands already have man pages");
+        println!("All commands already have man pages");
     }
 
-    println!("🔄 Syncing OPTIONS sections...");
+    println!("Syncing OPTIONS sections...");
     sync_all_man_pages(sh)?;
 
     println!("Man pages updated.");
@@ -585,6 +607,13 @@ fn apply_man_page_fixes(sh: &Shell, dir: &Utf8Path) -> Result<()> {
             .and_then(|s| s.to_str())
             .map_or(false, |e| e.chars().all(|c| c.is_numeric()))
         {
+            // Check if the file already has the fix applied
+            let content = fs::read_to_string(&path)?;
+            if content.starts_with(".ds Aq \\(aq\n") {
+                // Already fixed, skip
+                continue;
+            }
+
             // Apply the same sed fixes as before
             let groffsub = r"1i .ds Aq \\(aq";
             let dropif = r"/\.g \.ds Aq/d";

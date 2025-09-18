@@ -1,5 +1,3 @@
-% bootc-status-updated.target(8)
-
 # NAME
 
 bootc-status-updated.target
@@ -20,7 +18,7 @@ WantedBy=bootc-status-updated.target
 
 # SEE ALSO
 
-**bootc**(1), **bootc-status-updated.path**(8)
+**bootc**(1), **bootc-status-updated.path**(5)
 
 # VERSION
 

@@ -1,5 +1,3 @@
-% bootc-install-config(5)
-
 # NAME
 
 bootc-install-config.toml

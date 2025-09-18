@@ -5,7 +5,7 @@ installation using `install to-filesystem`
 
 # SYNOPSIS
 
-**bootc install finalize** [*OPTIONS...*] <*ROOT_PATH*>
+**bootc install finalize** \[*OPTIONS...*\] <*ROOT_PATH*>
 
 # DESCRIPTION
 

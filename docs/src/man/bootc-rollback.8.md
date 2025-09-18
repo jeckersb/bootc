@@ -4,7 +4,7 @@ bootc-rollback - Change the bootloader entry ordering
 
 # SYNOPSIS
 
-**bootc rollback** [*OPTIONS...*]
+**bootc rollback** \[*OPTIONS...*\]
 
 # DESCRIPTION
 
@@ -34,13 +34,9 @@ merges happen when new deployments are created.
 # OPTIONS
 
 <!-- BEGIN GENERATED OPTIONS -->
-**--apply**=*APPLY*
+**--apply**
 
     Restart or reboot into the rollback image
-
-    Possible values:
-    - true
-    - false
 
 **--soft-reboot**=*SOFT_REBOOT*
 

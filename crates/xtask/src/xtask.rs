@@ -36,9 +36,6 @@ fn main() {
 #[allow(clippy::type_complexity)]
 const TASKS: &[(&str, fn(&Shell) -> Result<()>)] = &[
     ("manpages", man::generate_man_pages),
-    ("sync-manpages", man::sync_all_man_pages),
-    ("test-sync-manpages", man::test_sync_workflow),
-    ("update-json-schemas", update_json_schemas),
     ("update-generated", update_generated),
     ("package", package),
     ("package-srpm", package_srpm),
@@ -47,17 +44,21 @@ const TASKS: &[(&str, fn(&Shell) -> Result<()>)] = &[
 ];
 
 fn try_main() -> Result<()> {
-    // Ensure our working directory is the toplevel
+    // Ensure our working directory is the toplevel (if we're in a git repo)
     {
-        let toplevel_path = Command::new("git")
+        if let Ok(toplevel_path) = Command::new("git")
             .args(["rev-parse", "--show-toplevel"])
             .output()
-            .context("Invoking git rev-parse")?;
-        if !toplevel_path.status.success() {
-            anyhow::bail!("Failed to invoke git rev-parse");
+        {
+            if toplevel_path.status.success() {
+                let path = String::from_utf8(toplevel_path.stdout)?;
+                std::env::set_current_dir(path.trim()).context("Changing to toplevel")?;
+            }
         }
-        let path = String::from_utf8(toplevel_path.stdout)?;
-        std::env::set_current_dir(path.trim()).context("Changing to toplevel")?;
+        // Otherwise verify we're in the toplevel
+        if !Utf8Path::new("ADOPTERS.md").try_exists()? {
+            anyhow::bail!("Not in toplevel")
+        }
     }
 
     let task = std::env::args().nth(1);
@@ -393,11 +394,20 @@ fn update_json_schemas(sh: &Shell) -> Result<()> {
     Ok(())
 }
 
-/// Update generated files using the new sync approach
+/// Update all generated files
+/// This is the main command developers should use to update generated content.
+/// It handles:
+/// - Creating new man page templates for new commands
+/// - Syncing CLI options to existing man pages
+/// - Updating JSON schema files
 #[context("Updating generated files")]
 fn update_generated(sh: &Shell) -> Result<()> {
+    // Update man pages (create new templates + sync options)
     man::update_manpages(sh)?;
+
+    // Update JSON schemas
     update_json_schemas(sh)?;
+
     Ok(())
 }
 

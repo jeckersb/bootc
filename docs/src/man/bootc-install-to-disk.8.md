@@ -4,7 +4,7 @@ bootc-install-to-disk - Install to the target block device
 
 # SYNOPSIS
 
-**bootc install to-disk** [*OPTIONS...*] <*DEVICE*>
+**bootc install to-disk** \[*OPTIONS...*\] <*DEVICE*>
 
 # DESCRIPTION
 
@@ -28,13 +28,9 @@ more complex such as RAID, LVM, LUKS etc.
 
     This argument is required.
 
-**--wipe**=*WIPE*
+**--wipe**
 
     Automatically wipe all existing data on device
-
-    Possible values:
-    - true
-    - false
 
 **--block-setup**=*BLOCK_SETUP*
 
@@ -71,37 +67,21 @@ more complex such as RAID, LVM, LUKS etc.
 
     Specify the image to fetch for subsequent updates
 
-**--enforce-container-sigpolicy**=*ENFORCE_CONTAINER_SIGPOLICY*
+**--enforce-container-sigpolicy**
 
     This is the inverse of the previous `--target-no-signature-verification` (which is now a no-op).  Enabling this option enforces that `/etc/containers/policy.json` includes a default policy which requires signatures
 
-    Possible values:
-    - true
-    - false
-
-**--run-fetch-check**=*RUN_FETCH_CHECK*
+**--run-fetch-check**
 
     Verify the image can be fetched from the bootc image. Updates may fail when the installation host is authenticated with the registry but the pull secret is not in the bootc image
 
-    Possible values:
-    - true
-    - false
-
-**--skip-fetch-check**=*SKIP_FETCH_CHECK*
+**--skip-fetch-check**
 
     Verify the image can be fetched from the bootc image. Updates may fail when the installation host is authenticated with the registry but the pull secret is not in the bootc image
 
-    Possible values:
-    - true
-    - false
-
-**--disable-selinux**=*DISABLE_SELINUX*
+**--disable-selinux**
 
     Disable SELinux in the target (installed) system
-
-    Possible values:
-    - true
-    - false
 
 **--karg**=*KARG*
 
@@ -111,13 +91,9 @@ more complex such as RAID, LVM, LUKS etc.
 
     The path to an `authorized_keys` that will be injected into the `root` account
 
-**--generic-image**=*GENERIC_IMAGE*
+**--generic-image**
 
     Perform configuration changes suitable for a "generic" disk image. At the moment:
-
-    Possible values:
-    - true
-    - false
 
 **--bound-images**=*BOUND_IMAGES*
 
@@ -134,13 +110,9 @@ more complex such as RAID, LVM, LUKS etc.
 
     The stateroot name to use. Defaults to `default`
 
-**--via-loopback**=*VIA_LOOPBACK*
+**--via-loopback**
 
     Instead of targeting a block device, write to a file via loopback
-
-    Possible values:
-    - true
-    - false
 
 <!-- END GENERATED OPTIONS -->
 

@@ -5,7 +5,7 @@ container build
 
 # SYNOPSIS
 
-**bootc container** [*OPTIONS...*] <*SUBCOMMAND*>
+**bootc container** \[*OPTIONS...*\] <*SUBCOMMAND*>
 
 # DESCRIPTION
 

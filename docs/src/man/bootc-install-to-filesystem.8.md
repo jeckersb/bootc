@@ -5,7 +5,7 @@ filesystem structure
 
 # SYNOPSIS
 
-**bootc install to-filesystem** [*OPTIONS...*] <*ROOT_PATH*>
+**bootc install to-filesystem** \[*OPTIONS...*\] <*ROOT_PATH*>
 
 # DESCRIPTION
 
@@ -41,21 +41,13 @@ is currently expected to be empty by default.
     - wipe
     - alongside
 
-**--acknowledge-destructive**=*ACKNOWLEDGE_DESTRUCTIVE*
+**--acknowledge-destructive**
 
     If the target is the running system's root filesystem, this will skip any warnings
 
-    Possible values:
-    - true
-    - false
-
-**--skip-finalize**=*SKIP_FINALIZE*
+**--skip-finalize**
 
     The default mode is to "finalize" the target filesystem by invoking `fstrim` and similar operations, and finally mounting it readonly.  This option skips those operations.  It is then the responsibility of the invoking code to perform those operations
-
-    Possible values:
-    - true
-    - false
 
 **--source-imgref**=*SOURCE_IMGREF*
 
@@ -71,37 +63,21 @@ is currently expected to be empty by default.
 
     Specify the image to fetch for subsequent updates
 
-**--enforce-container-sigpolicy**=*ENFORCE_CONTAINER_SIGPOLICY*
+**--enforce-container-sigpolicy**
 
     This is the inverse of the previous `--target-no-signature-verification` (which is now a no-op).  Enabling this option enforces that `/etc/containers/policy.json` includes a default policy which requires signatures
 
-    Possible values:
-    - true
-    - false
-
-**--run-fetch-check**=*RUN_FETCH_CHECK*
+**--run-fetch-check**
 
     Verify the image can be fetched from the bootc image. Updates may fail when the installation host is authenticated with the registry but the pull secret is not in the bootc image
 
-    Possible values:
-    - true
-    - false
-
-**--skip-fetch-check**=*SKIP_FETCH_CHECK*
+**--skip-fetch-check**
 
     Verify the image can be fetched from the bootc image. Updates may fail when the installation host is authenticated with the registry but the pull secret is not in the bootc image
 
-    Possible values:
-    - true
-    - false
-
-**--disable-selinux**=*DISABLE_SELINUX*
+**--disable-selinux**
 
     Disable SELinux in the target (installed) system
-
-    Possible values:
-    - true
-    - false
 
 **--karg**=*KARG*
 
@@ -111,13 +87,9 @@ is currently expected to be empty by default.
 
     The path to an `authorized_keys` that will be injected into the `root` account
 
-**--generic-image**=*GENERIC_IMAGE*
+**--generic-image**
 
     Perform configuration changes suitable for a "generic" disk image. At the moment:
-
-    Possible values:
-    - true
-    - false
 
 **--bound-images**=*BOUND_IMAGES*
 
