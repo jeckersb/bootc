@@ -20,7 +20,6 @@ use fn_error_context::context;
 use linkme::distributed_slice;
 use ostree_ext::ostree_prepareroot::Tristate;
 use ostree_ext::{composefs, ostree};
-use serde::{Deserialize, Serialize};
 
 use crate::store::Storage;
 
@@ -120,14 +119,6 @@ fn check_resolvconf(storage: &Storage) -> FsckResult {
         return fsck_err("Found usr/etc/resolv.conf as zero-sized file");
     }
     fsck_ok()
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub(crate) enum VerityState {
-    Enabled,
-    Disabled,
-    Inconsistent((u64, u64)),
 }
 
 #[derive(Debug, Default)]
