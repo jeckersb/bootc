@@ -5,8 +5,9 @@
 
 use anyhow::{Context, Result};
 use camino::Utf8Path;
+use fn_error_context::context;
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::{fs, io::Write};
 use xshell::{cmd, Shell};
 
 /// Represents a CLI option extracted from the JSON dump
@@ -50,10 +51,22 @@ pub struct CliPositional {
 }
 
 /// Extract CLI structure by running the JSON dump command
+#[context("Extracting CLI")]
 pub fn extract_cli_json(sh: &Shell) -> Result<CliCommand> {
-    let json_output = cmd!(sh, "cargo run --features=docgen -- internals dump-cli-json")
-        .read()
-        .context("Running CLI JSON dump command")?;
+    // If we have a release binary, assume that we should compile
+    // in release mode as hopefully we'll have incremental compilation
+    // enabled.
+    let releasebin = Utf8Path::new("target/release/bootc");
+    let release = releasebin
+        .try_exists()
+        .context("Querying release bin")?
+        .then_some("--release");
+    let json_output = cmd!(
+        sh,
+        "cargo run {release...} --features=docgen -- internals dump-cli-json"
+    )
+    .read()
+    .context("Running CLI JSON dump command")?;
 
     let cli_structure: CliCommand =
         serde_json::from_str(&json_output).context("Parsing CLI JSON output")?;
@@ -253,6 +266,7 @@ pub fn update_markdown_with_options(
 }
 
 /// Discover man page files and infer their command paths from filenames
+#[context("Querying man page mappings")]
 fn discover_man_page_mappings(
     cli_structure: &CliCommand,
 ) -> Result<Vec<(String, Option<Vec<String>>)>> {
@@ -260,7 +274,7 @@ fn discover_man_page_mappings(
     let mut mappings = Vec::new();
 
     // Read all .md files in the man directory
-    for entry in fs::read_dir(man_dir)? {
+    for entry in fs::read_dir(man_dir).context("Reading docs/src/man")? {
         let entry = entry?;
         let path = entry.path();
 
@@ -278,7 +292,7 @@ fn discover_man_page_mappings(
             .ok_or_else(|| anyhow::anyhow!("Invalid filename"))?;
 
         // Check if the file contains generation markers
-        let content = fs::read_to_string(&path)?;
+        let content = fs::read_to_string(&path).with_context(|| format!("Reading {path:?}"))?;
         if !content.contains("<!-- BEGIN GENERATED OPTIONS -->")
             && !content.contains("<!-- BEGIN GENERATED SUBCOMMANDS -->")
         {
@@ -331,6 +345,7 @@ fn find_command_path_for_filename(
 }
 
 /// Sync all man pages with their corresponding CLI commands
+#[context("Syncing man pages")]
 pub fn sync_all_man_pages(sh: &Shell) -> Result<()> {
     let cli_structure = extract_cli_json(sh)?;
 
@@ -382,12 +397,14 @@ pub fn sync_all_man_pages(sh: &Shell) -> Result<()> {
 }
 
 /// Generate man pages from hand-written markdown sources
+#[context("Generating manpages")]
 pub fn generate_man_pages(sh: &Shell) -> Result<()> {
     let man_src_dir = Utf8Path::new("docs/src/man");
     let man_output_dir = Utf8Path::new("target/man");
 
     // Ensure output directory exists
-    sh.create_dir(man_output_dir)?;
+    sh.create_dir(man_output_dir)
+        .with_context(|| format!("Creating {man_output_dir}"))?;
 
     // First, sync the markdown files with current CLI options
     sync_all_man_pages(sh)?;
@@ -396,7 +413,7 @@ pub fn generate_man_pages(sh: &Shell) -> Result<()> {
     let version = get_package_version()?;
 
     // Convert each markdown file to man page format
-    for entry in fs::read_dir(man_src_dir)? {
+    for entry in fs::read_dir(man_src_dir).context("Reading manpages")? {
         let entry = entry?;
         let path = entry.path();
 
@@ -421,7 +438,7 @@ pub fn generate_man_pages(sh: &Shell) -> Result<()> {
         let output_file = man_output_dir.join(format!("{}.{}", base_name, section));
 
         // Read markdown content and replace version placeholders
-        let content = fs::read_to_string(&path)?;
+        let content = fs::read_to_string(&path).with_context(|| format!("Reading {path:?}"))?;
         let content_with_version = content.replace("<!-- VERSION PLACEHOLDER -->", &version);
 
         // Check if we need to regenerate by comparing input and output modification times
@@ -437,15 +454,13 @@ pub fn generate_man_pages(sh: &Shell) -> Result<()> {
 
         if should_regenerate {
             // Create temporary file with version-replaced content
-            let temp_path = format!("{}.tmp", path.display());
-            fs::write(&temp_path, content_with_version)?;
+            let mut tmpf = tempfile::NamedTempFile::new_in(path.parent().unwrap())?;
+            tmpf.write_all(content_with_version.as_bytes())?;
+            let tmpf = tmpf.path();
 
-            cmd!(sh, "go-md2man -in {temp_path} -out {output_file}")
+            cmd!(sh, "go-md2man -in {tmpf} -out {output_file}")
                 .run()
                 .with_context(|| format!("Converting {} to man page", path.display()))?;
-
-            // Clean up temporary file
-            fs::remove_file(&temp_path)?;
 
             println!("Generated {}", output_file);
         }
@@ -458,6 +473,7 @@ pub fn generate_man_pages(sh: &Shell) -> Result<()> {
 }
 
 /// Get version from Cargo.toml
+#[context("Querying package version")]
 fn get_package_version() -> Result<String> {
     let cargo_toml =
         fs::read_to_string("crates/lib/Cargo.toml").context("Reading crates/lib/Cargo.toml")?;
@@ -596,6 +612,7 @@ TODO: Add practical examples showing how to use this command.
 }
 
 /// Apply post-processing fixes to generated man pages
+#[context("Fixing man pages")]
 fn apply_man_page_fixes(sh: &Shell, dir: &Utf8Path) -> Result<()> {
     // Fix apostrophe rendering issue
     for entry in fs::read_dir(dir)? {
@@ -608,7 +625,7 @@ fn apply_man_page_fixes(sh: &Shell, dir: &Utf8Path) -> Result<()> {
             .map_or(false, |e| e.chars().all(|c| c.is_numeric()))
         {
             // Check if the file already has the fix applied
-            let content = fs::read_to_string(&path)?;
+            let content = fs::read_to_string(&path).with_context(|| format!("Reading {path:?}"))?;
             if content.starts_with(".ds Aq \\(aq\n") {
                 // Already fixed, skip
                 continue;

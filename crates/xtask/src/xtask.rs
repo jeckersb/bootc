@@ -27,8 +27,13 @@ const TAR_REPRODUCIBLE_OPTS: &[&str] = &[
 ];
 
 fn main() {
+    use std::io::Write as _;
+
+    use owo_colors::OwoColorize;
     if let Err(e) = try_main() {
-        eprintln!("error: {e:?}");
+        let mut stderr = anstream::stderr();
+        // Don't panic if writing fails.
+        let _ = writeln!(stderr, "{}{:#}", "error: ".red(), e);
         std::process::exit(1);
     }
 }
@@ -56,7 +61,10 @@ fn try_main() -> Result<()> {
             }
         }
         // Otherwise verify we're in the toplevel
-        if !Utf8Path::new("ADOPTERS.md").try_exists()? {
+        if !Utf8Path::new("ADOPTERS.md")
+            .try_exists()
+            .context("Checking for toplevel")?
+        {
             anyhow::bail!("Not in toplevel")
         }
     }
@@ -69,11 +77,11 @@ fn try_main() -> Result<()> {
             .iter()
             .find_map(|(k, f)| (*k == cmd).then_some(*f))
             .unwrap_or(print_help);
-        f(&sh)?;
+        return f(&sh);
     } else {
         print_help(&sh)?;
+        Ok(())
     }
-    Ok(())
 }
 
 fn gitrev_to_version(v: &str) -> String {
