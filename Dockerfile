@@ -63,7 +63,7 @@ COPY --from=src /src /src
 WORKDIR /src
 # See https://www.reddit.com/r/rust/comments/126xeyx/exploring_the_problem_of_faster_cargo_docker/
 # We aren't using the full recommendations there, just the simple bits.
-RUN --mount=type=cache,target=/build/target --mount=type=cache,target=/var/roothome <<EORUN
+RUN --mount=type=cache,target=/src/target --mount=type=cache,target=/var/roothome <<EORUN
 set -xeuo pipefail
 make
 make install-all DESTDIR=/out
