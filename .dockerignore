@@ -3,8 +3,6 @@
 target
 # This one can have large .qcow2 files written by coreos-assembler
 .cosa
-# These directories don't contribute to our container build
-docs/
 # TMT interprets these, not the container build
 plans/
 # These only affect flow outside of the container

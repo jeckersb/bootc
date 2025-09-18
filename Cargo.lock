@@ -3392,11 +3392,13 @@ checksum = "32ac00cd3f8ec9c1d33fb3e7958a82df6989c42d747bd326c822b1d625283547"
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "anstream",
  "anyhow",
  "camino",
  "chrono",
  "fn-error-context",
  "mandown",
+ "owo-colors",
  "serde",
  "serde_json",
  "tar",
