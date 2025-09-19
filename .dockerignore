@@ -1,11 +1,19 @@
-# The big one - this can get HUGE and we don't want
-# to copy it around.
-target
-# This one can have large .qcow2 files written by coreos-assembler
-.cosa
-# TMT interprets these, not the container build
-plans/
-# These only affect flow outside of the container
-Dockerfile
-Justfile
-hack/Containerfile
+# Exclude everything by default, then include just what we need
+# Especially note this means that .git is not included, and not tests/
+# to avoid spurious rebuilds.
+*
+
+# This one signals we're in a bootc toplevel
+!ADOPTERS.md
+# Toplevel build bits
+!Makefile
+!Cargo.*
+# We do build manpages from markdown
+!docs/
+# We use the spec file
+!contrib/
+# The systemd units and baseimage bits end up in installs
+!systemd/
+!baseimage/
+# And finally of course all the Rust sources
+!crates/

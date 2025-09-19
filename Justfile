@@ -1,10 +1,18 @@
-# Build the container image from current sources
+# The default entrypoint to working on this project.
+# Commands here typically wrap e.g. `podman build` or
+# other tools which might launch e.g. VMs.
+# 
+# See also `Makefile`.
+
+# Build the container image from current sources.
+# Note commonly you might want to override the base image via e.g.
+# `just build --build-arg=base=quay.io/fedora/fedora-bootc:42`
 build *ARGS:
     podman build --jobs=4 -t localhost/bootc {{ARGS}} .
 
 # This container image has additional testing content and utilities
 build-integration-test-image *ARGS:
-    podman build --jobs=4 -t localhost/bootc-integration -f hack/Containerfile {{ARGS}} .
+    cd hack && podman build --jobs=4 -t localhost/bootc-integration -f Containerfile {{ARGS}} .
     # Keep these in sync with what's used in hack/lbi
     podman pull -q --retry 5 --retry-delay 5s quay.io/curl/curl:latest quay.io/curl/curl-base:latest registry.access.redhat.com/ubi9/podman:latest
 
