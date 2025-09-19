@@ -5,18 +5,24 @@
 
 FROM scratch as context
 # We only need this stuff in the initial context
-COPY hack /hack
-COPY contrib /contrib
+COPY . /
 
-FROM localhost/bootc
+# An intermediate layer which caches the extended RPMS
+FROM localhost/bootc as extended
 # We support e.g. adding cloud-init
 ARG variant=
 # And this layer has additional stuff for testing, such as nushell etc.
 RUN --mount=type=bind,from=context,target=/run/context <<EORUN
 set -xeuo pipefail
-cd /run/context/hack
+cd /run/context/
 ./provision-derived.sh "$variant"
+EORUN
 
+# And the configs
+FROM extended
+RUN --mount=type=bind,from=context,target=/run/context <<EORUN
+set -xeuo pipefail
+cd /run/context
 # For test-22-logically-bound-install
 cp -a lbi/usr/. /usr
 for x in curl.container curl-base.image podman.image; do
@@ -24,9 +30,9 @@ for x in curl.container curl-base.image podman.image; do
 done
 
 # Add some testing kargs into our dev builds
-install -D -t /usr/lib/bootc/kargs.d /run/context/hack/test-kargs/*
+install -D -t /usr/lib/bootc/kargs.d test-kargs/*
 # Also copy in some default install configs we use for testing
-install -D -t /usr/lib/bootc/install/ /run/context/hack/install-test-configs/*
+install -D -t /usr/lib/bootc/install/ install-test-configs/*
 # Finally, test our own linting
 bootc container lint --fatal-warnings
 EORUN

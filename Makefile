@@ -1,3 +1,16 @@
+# Understanding Makefile vs Justfile:
+#
+# This file MUST NOT:
+# - Spawn podman or virtualization tools
+# - Invoke `sudo`
+#
+# Stated positively, the code invoked from here is only expected to
+# operate as part of "a build" that results in a bootc binary
+# plus data files. The two key operations are `make`
+# and `make install`.
+# We expect code run from here is inside a container with low
+# privileges - running as a nonzero UID even.
+
 prefix ?= /usr
 
 SOURCE_DATE_EPOCH ?= $(shell git log -1 --pretty=%ct)
@@ -78,9 +91,6 @@ bin-archive: all
 
 test-bin-archive: all
 	$(MAKE) install-all DESTDIR=tmp-install && $(TAR_REPRODUCIBLE) --zstd -C tmp-install -cf target/bootc.tar.zst . && rm tmp-install -rf
-
-test:
-	tests/build.sh && tests/test.sh
 
 # This gates CI by default. Note that for clippy, we gate on
 # only the clippy correctness and suspicious lints, plus a select
