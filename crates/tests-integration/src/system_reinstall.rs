@@ -6,11 +6,13 @@ use rustix::fs::statfs;
 use std::{
     fs::{self},
     path::Path,
+    time::Duration,
 };
 
 use crate::install;
 
-const TIMEOUT: u64 = 60000;
+/// A generous timeout since some CI runs may be slower
+const TIMEOUT: Duration = std::time::Duration::from_secs(5 * 60);
 
 fn get_deployment_dir() -> Result<std::path::PathBuf> {
     let base_path = Path::new("/ostree/deploy/default/deploy");
@@ -58,7 +60,7 @@ pub(crate) fn run(image: &str, testargs: libtest_mimic::Arguments) -> Result<()>
 
             let mut p: PtySession = rexpect::spawn(
                 format!("/usr/bin/system-reinstall-bootc {image}").as_str(),
-                Some(TIMEOUT),
+                Some(TIMEOUT.as_millis().try_into().unwrap()),
             )?;
 
             // Basic flow stdout verification
@@ -132,7 +134,7 @@ pub(crate) fn run(image: &str, testargs: libtest_mimic::Arguments) -> Result<()>
             // Run system-reinstall-bootc
             let mut p: PtySession = rexpect::spawn(
                 format!("/usr/bin/system-reinstall-bootc {image}").as_str(),
-                Some(TIMEOUT),
+                Some(TIMEOUT.as_millis().try_into().unwrap()),
             )?;
 
             p.exp_regex("Found only one user ([^:]+) with ([\\d]+) SSH authorized keys.")?;
