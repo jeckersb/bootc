@@ -12,6 +12,7 @@ use crate::{
         grub_menuconfig::{parse_grub_menuentry_file, MenuEntry},
     },
     spec::{BootEntry, BootOrder, Host, HostSpec, ImageReference, ImageStatus},
+    utils::{read_uefi_var, EfiError},
 };
 
 use std::str::FromStr;
@@ -32,7 +33,6 @@ use crate::composefs_consts::{
     COMPOSEFS_STAGED_DEPLOYMENT_FNAME, COMPOSEFS_TRANSIENT_STATE_DIR, ORIGIN_KEY_BOOT,
     ORIGIN_KEY_BOOT_TYPE, STATE_DIR_RELATIVE,
 };
-use crate::install::EFIVARFS;
 use crate::spec::Bootloader;
 
 /// A parsed composefs command line
@@ -153,16 +153,9 @@ async fn get_container_manifest_and_config(
 
 #[context("Getting bootloader")]
 fn get_bootloader() -> Result<Bootloader> {
-    let efivarfs = match Dir::open_ambient_dir(EFIVARFS, ambient_authority()) {
-        Ok(dir) => dir,
-        // Most likely using BIOS
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Bootloader::Grub),
-        Err(e) => Err(e).context(format!("Opening {EFIVARFS}"))?,
-    };
-
     const EFI_LOADER_INFO: &str = "LoaderInfo-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f";
 
-    match efivarfs.read_to_string(EFI_LOADER_INFO) {
+    match read_uefi_var(EFI_LOADER_INFO) {
         Ok(loader) => {
             if loader.to_lowercase().contains("systemd-boot") {
                 return Ok(Bootloader::Systemd);
@@ -171,9 +164,12 @@ fn get_bootloader() -> Result<Bootloader> {
             return Ok(Bootloader::Grub);
         }
 
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Bootloader::Grub),
+        Err(efi_error) => match efi_error {
+            EfiError::SystemNotUEFI => return Ok(Bootloader::Grub),
+            EfiError::MissingVar => return Ok(Bootloader::Grub),
 
-        Err(e) => Err(e).context(format!("Opening {EFI_LOADER_INFO}"))?,
+            e => return Err(anyhow::anyhow!("Failed to read EfiLoaderInfo: {e:?}")),
+        },
     }
 }
 
