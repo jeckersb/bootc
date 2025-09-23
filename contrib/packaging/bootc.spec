@@ -11,6 +11,15 @@
     %bcond_with rhsm
 %endif
 
+%global rust_minor %(rustc --version | cut -f2 -d" " | cut -f2 -d".")
+
+# https://github.com/bootc-dev/bootc/issues/1640
+%if 0%{?fedora} || 0%{?rhel} >= 10 || 0%{?rust_minor} >= 89
+    %global new_cargo_macros 1
+%else
+    %global new_cargo_macros 0
+%endif
+
 Name:           bootc
 Version:        1.1.5
 Release:        1%{?dist}
@@ -87,7 +96,7 @@ rm vendor-config.toml
 
 %build
 # Build the main bootc binary
-%if 0%{?fedora} || 0%{?rhel} >= 10
+%if %new_cargo_macros
     %cargo_build %{?with_rhsm:-f rhsm}
 %else
     %cargo_build %{?with_rhsm:--features rhsm}
@@ -96,7 +105,7 @@ rm vendor-config.toml
 # Build the system reinstallation CLI binary
 %global cargo_args -p system-reinstall-bootc
 export SYSTEM_REINSTALL_BOOTC_INSTALL_PODMAN_PATH=%{system_reinstall_bootc_install_podman_path}
-%if 0%{?fedora} || 0%{?rhel} >= 10
+%if %new_cargo_macros
     # In cargo-rpm-macros, the cargo_build macro does flag processing,
     # so we need to pass '--' to signify that cargo_args is not part
     # of the macro args
