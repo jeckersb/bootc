@@ -3,6 +3,7 @@ use std::process::Command;
 use anyhow::Result;
 use bootc_mount::run_findmnt;
 use bootc_utils::CommandRunExt;
+use fn_error_context::context;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -23,6 +24,7 @@ pub(crate) struct LogicalVolume {
     vg_name: String,
 }
 
+#[context("parse_volumes")]
 pub(crate) fn parse_volumes(group: Option<&str>) -> Result<Vec<LogicalVolume>> {
     if which::which("podman").is_err() {
         tracing::debug!("lvs binary not found. Skipping logical volume check.");
@@ -46,6 +48,7 @@ pub(crate) fn parse_volumes(group: Option<&str>) -> Result<Vec<LogicalVolume>> {
         .collect())
 }
 
+#[context("lvm: check_root_siblings")]
 pub(crate) fn check_root_siblings() -> Result<Vec<String>> {
     let all_volumes = parse_volumes(None)?;
 
@@ -63,14 +66,14 @@ pub(crate) fn check_root_siblings() -> Result<Vec<String>> {
         })
         .flat_map(|root_lv| parse_volumes(Some(root_lv.vg_name.as_str())).unwrap_or_default())
         .try_fold(Vec::new(), |mut acc, r| -> anyhow::Result<_> {
-            let mount = run_findmnt(&["-S", &r.lv_path], None)?;
+            let mount = run_findmnt(&["-S", &r.lv_path], None).unwrap_or_default();
             let mount_path = if let Some(fs) = mount.filesystems.first() {
                 &fs.target
             } else {
                 ""
             };
 
-            if mount_path != "/" {
+            if mount_path != "/" && !mount_path.is_empty() {
                 acc.push(format!(
                     "Type: LVM, Mount Point: {}, LV: {}, VG: {}, Size: {}",
                     mount_path, r.lv_name, r.vg_name, r.lv_size

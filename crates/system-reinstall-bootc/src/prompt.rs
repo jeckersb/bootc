@@ -11,8 +11,8 @@ macro_rules! println_flush {
 
 use crate::{btrfs, lvm, prompt, users::get_all_users_keys};
 use anyhow::{ensure, Context, Result};
-
 use crossterm::event::{self, Event};
+use fn_error_context::context;
 use std::time::Duration;
 
 const NO_SSH_PROMPT: &str = "None of the users on this system found have authorized SSH keys, \
@@ -114,6 +114,7 @@ pub(crate) fn press_enter() {
     }
 }
 
+#[context("mount_warning")]
 pub(crate) fn mount_warning() -> Result<()> {
     let mut mounts = btrfs::check_root_siblings()?;
     mounts.extend(lvm::check_root_siblings()?);
@@ -138,6 +139,7 @@ pub(crate) fn mount_warning() -> Result<()> {
 /// The keys are stored in a temporary file which is passed to
 /// the podman run invocation to be used by
 /// `bootc install to-existing-root --root-ssh-authorized-keys`
+#[context("gathering authorized keys")]
 pub(crate) fn get_ssh_keys(temp_key_file_path: &str) -> Result<()> {
     let users = get_all_users_keys()?;
     if users.is_empty() {

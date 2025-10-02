@@ -3,6 +3,7 @@ use crate::prompt;
 use super::ROOT_KEY_MOUNT_POINT;
 use anyhow::{ensure, Context, Result};
 use bootc_utils::CommandRunExt;
+use fn_error_context::context;
 use std::process::Command;
 use which::which;
 
@@ -22,6 +23,7 @@ fn bootc_has_clean(image: &str) -> Result<bool> {
     Ok(stdout_str.contains("--cleanup"))
 }
 
+#[context("Generating podman reinstall command")]
 pub(crate) fn reinstall_command(image: &str, ssh_key_file: &str) -> Result<Command> {
     let mut podman_command_and_args = [
         // We use podman to run the bootc container. This might change in the future to remove the

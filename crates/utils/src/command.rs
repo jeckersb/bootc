@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use fn_error_context::context;
 
 /// Helpers intended for [`std::process::Command`].
 pub trait CommandRunExt {
@@ -122,6 +123,7 @@ impl ExitStatusExt for std::process::ExitStatus {
         }
         anyhow::bail!(format!("Subprocess failed: {self:?}"))
     }
+    #[context("check_status_with_stderr")]
     fn check_status_with_stderr(&mut self, stderr: std::fs::File) -> Result<()> {
         let stderr_buf = last_utf8_content_from_file(stderr);
         if self.success() {
@@ -138,11 +140,14 @@ impl CommandRunExt for Command {
     }
 
     /// Synchronously execute the child, and return an error if the child exited unsuccessfully.
+    #[context("run_capture_stderr")]
     fn run_capture_stderr(&mut self) -> Result<()> {
-        let stderr = tempfile::tempfile()?;
-        self.stderr(stderr.try_clone()?);
+        let stderr = tempfile::tempfile().context("tempfile")?;
+        self.stderr(stderr.try_clone().context("try_clone")?);
         tracing::trace!("exec: {self:?}");
-        self.status()?.check_status_with_stderr(stderr)
+        self.status()
+            .context("status")?
+            .check_status_with_stderr(stderr)
     }
 
     #[allow(unsafe_code)]
@@ -167,9 +172,10 @@ impl CommandRunExt for Command {
         self
     }
 
+    #[context("run_get_output")]
     fn run_get_output(&mut self) -> Result<Box<dyn std::io::BufRead>> {
-        let mut stdout = tempfile::tempfile()?;
-        self.stdout(stdout.try_clone()?);
+        let mut stdout = tempfile::tempfile().context("tempfile")?;
+        self.stdout(stdout.try_clone().context("try_clone")?);
         self.run_capture_stderr()?;
         stdout.seek(std::io::SeekFrom::Start(0)).context("seek")?;
         Ok(Box::new(std::io::BufReader::new(stdout)))
@@ -183,6 +189,7 @@ impl CommandRunExt for Command {
     }
 
     /// Synchronously execute the child, and parse its stdout as JSON.
+    #[context("run_and_parse_json")]
     fn run_and_parse_json<T: serde::de::DeserializeOwned>(&mut self) -> Result<T> {
         let output = self.run_get_output()?;
         serde_json::from_reader(output).map_err(Into::into)

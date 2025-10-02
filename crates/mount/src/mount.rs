@@ -52,6 +52,7 @@ pub struct Findmnt {
     pub filesystems: Vec<Filesystem>,
 }
 
+#[context("run_findmnt")]
 pub fn run_findmnt(args: &[&str], path: Option<&str>) -> Result<Findmnt> {
     let mut cmd = Command::new("findmnt");
     cmd.args([
