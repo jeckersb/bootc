@@ -3,6 +3,7 @@
 use anyhow::{ensure, Context, Result};
 use bootc_utils::CommandRunExt;
 use clap::Parser;
+use fn_error_context::context;
 use rustix::process::getuid;
 
 mod btrfs;
@@ -29,6 +30,7 @@ struct Opts {
     // Note if we ever add any other options here,
 }
 
+#[context("run")]
 fn run() -> Result<()> {
     // We historically supported an environment variable providing a config to override the image, so
     // keep supporting that. I'm considering deprecating that though.

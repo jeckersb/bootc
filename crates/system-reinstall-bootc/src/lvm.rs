@@ -3,6 +3,7 @@ use std::process::Command;
 use anyhow::Result;
 use bootc_mount::run_findmnt;
 use bootc_utils::{CommandRunExt, ResultExt};
+use fn_error_context::context;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -23,6 +24,7 @@ pub(crate) struct LogicalVolume {
     vg_name: String,
 }
 
+#[context("parse_volumes")]
 pub(crate) fn parse_volumes(group: Option<&str>) -> Result<Vec<LogicalVolume>> {
     if which::which("podman").is_err() {
         tracing::debug!("lvs binary not found. Skipping logical volume check.");
@@ -46,6 +48,7 @@ pub(crate) fn parse_volumes(group: Option<&str>) -> Result<Vec<LogicalVolume>> {
         .collect())
 }
 
+#[context("check_root_siblings")]
 pub(crate) fn check_root_siblings() -> Result<Vec<String>> {
     let all_volumes = parse_volumes(None)?;
 
