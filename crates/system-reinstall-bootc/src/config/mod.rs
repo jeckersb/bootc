@@ -2,6 +2,7 @@ use std::{fs::File, io::BufReader};
 
 use anyhow::{Context, Result};
 use bootc_utils::PathQuotedDisplay;
+use fn_error_context::context;
 use serde::{Deserialize, Serialize};
 
 mod cli;
@@ -17,6 +18,7 @@ pub(crate) struct ReinstallConfig {
 }
 
 impl ReinstallConfig {
+    #[context("load")]
     pub fn load() -> Result<Option<Self>> {
         let Some(config) = std::env::var_os(CONFIG_VAR) else {
             return Ok(None);

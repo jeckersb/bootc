@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use bootc_utils::CommandRunExt;
 use bootc_utils::PathQuotedDisplay;
+use fn_error_context::context;
 use openssh_keys::PublicKey;
 use rustix::fs::Uid;
 use rustix::process::geteuid;
@@ -17,6 +18,7 @@ use std::os::unix::process::CommandExt;
 use std::process::Command;
 use uzers::os::unix::UserExt;
 
+#[context("loginctl_users")]
 fn loginctl_users() -> Result<BTreeSet<String>> {
     let loginctl_raw_output = loginctl_run_compat()?;
 
@@ -24,6 +26,7 @@ fn loginctl_users() -> Result<BTreeSet<String>> {
 }
 
 /// See [`test::test_parse_lsblk`] for example loginctl output
+#[context("loginctl_parse")]
 fn loginctl_parse(users: Value) -> Result<BTreeSet<String>> {
     users
         .as_array()
@@ -47,6 +50,7 @@ fn loginctl_parse(users: Value) -> Result<BTreeSet<String>> {
 }
 
 /// Run `loginctl` with some compatibility maneuvers to get JSON output
+#[context("loginctl_run_compat")]
 fn loginctl_run_compat() -> Result<Value> {
     let mut command = Command::new("loginctl");
     command.arg("list-sessions").arg("--output").arg("json");
@@ -71,6 +75,7 @@ struct UidChange {
 }
 
 impl UidChange {
+    #[context("new")]
     fn new(change_to_uid: Uid) -> Result<Self> {
         let (uid, euid) = (getuid(), geteuid());
         set_thread_res_uid(uid, change_to_uid, euid).context("setting effective uid failed")?;
@@ -115,6 +120,7 @@ struct SshdConfig<'a> {
 }
 
 impl<'a> SshdConfig<'a> {
+    #[context("parse")]
     pub fn parse(sshd_output: &'a str) -> Result<SshdConfig<'a>> {
         let config = sshd_output
             .lines()
@@ -138,6 +144,7 @@ impl<'a> SshdConfig<'a> {
     }
 }
 
+#[context("get_keys_from_files")]
 fn get_keys_from_files(user: &uzers::User, keyfiles: &Vec<&str>) -> Result<Vec<PublicKey>> {
     let home_dir = user.home_dir();
     let mut user_authorized_keys: Vec<PublicKey> = Vec::new();
@@ -170,6 +177,7 @@ fn get_keys_from_files(user: &uzers::User, keyfiles: &Vec<&str>) -> Result<Vec<P
     Ok(user_authorized_keys)
 }
 
+#[context("get_keys_from_command")]
 fn get_keys_from_command(command: &str, command_user: &str) -> Result<Vec<PublicKey>> {
     let user_config = uzers::get_user_by_name(command_user).context(format!(
         "authorized_keys_command_user {command_user} not found"
@@ -184,6 +192,7 @@ fn get_keys_from_command(command: &str, command_user: &str) -> Result<Vec<Public
     Ok(keys)
 }
 
+#[context("get_all_users_keys")]
 pub(crate) fn get_all_users_keys() -> Result<Vec<UserKeys>> {
     let loginctl_user_names = loginctl_users().context("enumerate users")?;
 

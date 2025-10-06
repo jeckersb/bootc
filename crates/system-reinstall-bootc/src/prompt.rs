@@ -11,6 +11,7 @@ macro_rules! println_flush {
 
 use crate::{btrfs, lvm, prompt, users::get_all_users_keys};
 use anyhow::{ensure, Context, Result};
+use fn_error_context::context;
 
 use crossterm::event::{self, Event};
 use std::time::Duration;
@@ -19,6 +20,7 @@ const NO_SSH_PROMPT: &str = "None of the users on this system found have authori
     if your image doesn't use cloud-init or other means to set up users, \
     you may not be able to log in after reinstalling. Do you want to continue?";
 
+#[context("prompt_single_user")]
 fn prompt_single_user(user: &crate::users::UserKeys) -> Result<Vec<&crate::users::UserKeys>> {
     let prompt = indoc::formatdoc! {
         "Found only one user ({user}) with {num_keys} SSH authorized keys.
@@ -32,6 +34,7 @@ fn prompt_single_user(user: &crate::users::UserKeys) -> Result<Vec<&crate::users
     Ok(if answer { vec![&user] } else { vec![] })
 }
 
+#[context("prompt_user_selection")]
 fn prompt_user_selection(
     all_users: &[crate::users::UserKeys],
 ) -> Result<Vec<&crate::users::UserKeys>> {
@@ -55,6 +58,7 @@ fn prompt_user_selection(
         .collect())
 }
 
+#[context("reboot")]
 pub(crate) fn reboot() -> Result<()> {
     let delay_seconds = 10;
     println_flush!(
@@ -79,6 +83,7 @@ pub(crate) fn reboot() -> Result<()> {
 
 /// Temporary safety mechanism to stop devs from running it on their dev machine. TODO: Discuss
 /// final prompting UX in https://github.com/bootc-dev/bootc/discussions/1060
+#[context("temporary_developer_protection_prompt")]
 pub(crate) fn temporary_developer_protection_prompt() -> Result<()> {
     // Print an empty line so that the warning stands out from the rest of the output
     println_flush!();
@@ -94,6 +99,7 @@ pub(crate) fn temporary_developer_protection_prompt() -> Result<()> {
     Ok(())
 }
 
+#[context("ask_yes_no")]
 pub(crate) fn ask_yes_no(prompt: &str, default: bool) -> Result<bool> {
     dialoguer::Confirm::new()
         .with_prompt(prompt)
@@ -114,6 +120,7 @@ pub(crate) fn press_enter() {
     }
 }
 
+#[context("mount_warning")]
 pub(crate) fn mount_warning() -> Result<()> {
     let mut mounts = btrfs::check_root_siblings()?;
     mounts.extend(lvm::check_root_siblings()?);
@@ -138,6 +145,7 @@ pub(crate) fn mount_warning() -> Result<()> {
 /// The keys are stored in a temporary file which is passed to
 /// the podman run invocation to be used by
 /// `bootc install to-existing-root --root-ssh-authorized-keys`
+#[context("get_ssh_keys")]
 pub(crate) fn get_ssh_keys(temp_key_file_path: &str) -> Result<()> {
     let users = get_all_users_keys()?;
     if users.is_empty() {

@@ -3,9 +3,11 @@ use crate::prompt;
 use super::ROOT_KEY_MOUNT_POINT;
 use anyhow::{ensure, Context, Result};
 use bootc_utils::CommandRunExt;
+use fn_error_context::context;
 use std::process::Command;
 use which::which;
 
+#[context("bootc_has_clean")]
 fn bootc_has_clean(image: &str) -> Result<bool> {
     let output = Command::new("podman")
         .args([
@@ -22,6 +24,7 @@ fn bootc_has_clean(image: &str) -> Result<bool> {
     Ok(stdout_str.contains("--cleanup"))
 }
 
+#[context("reinstall_command")]
 pub(crate) fn reinstall_command(image: &str, ssh_key_file: &str) -> Result<Command> {
     let mut podman_command_and_args = [
         // We use podman to run the bootc container. This might change in the future to remove the
@@ -108,6 +111,7 @@ fn image_exists_command(image: &str) -> Command {
     command
 }
 
+#[context("pull_if_not_present")]
 pub(crate) fn pull_if_not_present(image: &str) -> Result<()> {
     let result = image_exists_command(image).status()?;
 
@@ -136,6 +140,7 @@ const fn podman_install_script_path() -> &'static str {
     }
 }
 
+#[context("ensure_podman_installed")]
 pub(crate) fn ensure_podman_installed() -> Result<()> {
     if which("podman").is_ok() {
         return Ok(());
