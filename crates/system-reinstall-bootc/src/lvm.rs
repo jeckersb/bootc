@@ -26,7 +26,7 @@ pub(crate) struct LogicalVolume {
 
 #[context("parse_volumes")]
 pub(crate) fn parse_volumes(group: Option<&str>) -> Result<Vec<LogicalVolume>> {
-    if which::which("podman").is_err() {
+    if which::which("lvs").is_err() {
         tracing::debug!("lvs binary not found. Skipping logical volume check.");
         return Ok(Vec::<LogicalVolume>::new());
     }
