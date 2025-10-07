@@ -15,5 +15,8 @@
 # The systemd units and baseimage bits end up in installs
 !systemd/
 !baseimage/
+# Workaround for podman bug with secrets + remote
+# https://github.com/containers/podman/issues/25314
+!podman-build-secret*
 # And finally of course all the Rust sources
 !crates/
