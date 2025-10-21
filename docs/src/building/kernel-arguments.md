@@ -29,7 +29,7 @@ architecture specific via the `match-architectures` key:
 
 ```
 # /usr/lib/bootc/kargs.d/00-console.toml
-kargs = ["console=ttyS0,114800n8"]
+kargs = ["console=ttyS0,115200n8"]
 match-architectures = ["x86_64"]
 ```
 
