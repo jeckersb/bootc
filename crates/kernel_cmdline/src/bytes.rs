@@ -5,7 +5,7 @@
 
 use std::borrow::Cow;
 
-use crate::utf8;
+use crate::{utf8, Action};
 
 use anyhow::Result;
 
@@ -134,11 +134,17 @@ impl<'a> Cmdline<'a> {
 
     /// Add or modify a parameter to the command line
     ///
-    /// Returns `true` if the parameter was added or modified.
+    /// Returns `Action::Added` if the parameter did not exist before
+    /// and was added.
     ///
-    /// Returns `false` if the parameter already existed with the same
-    /// content.
-    pub fn add_or_modify(&mut self, param: &Parameter) -> bool {
+    /// Returns `Action::Modified` if the parameter existed before,
+    /// but contained a different value.  The value was updated to the
+    /// newly-requested value.
+    ///
+    /// Returns `Action::Existed` if the parameter existed before, and
+    /// contained the same value as the newly-requested value.  No
+    /// modification was made.
+    pub fn add_or_modify(&mut self, param: &Parameter) -> Action {
         let mut new_params = Vec::new();
         let mut modified = false;
         let mut seen_key = false;
@@ -170,14 +176,14 @@ impl<'a> Cmdline<'a> {
                 self_mut.push(b' ');
             }
             self_mut.extend_from_slice(param.parameter);
-            return true;
+            return Action::Added;
         }
         if modified {
             self.0 = Cow::Owned(new_params.join(b" ".as_slice()));
-            true
+            Action::Modified
         } else {
             // The parameter already existed with the same content, and there were no duplicates.
-            false
+            Action::Existed
         }
     }
 
@@ -654,14 +660,17 @@ mod tests {
         let mut kargs = Cmdline::from(b"foo=bar");
 
         // add new
-        assert!(kargs.add_or_modify(&param("baz")));
+        assert!(matches!(kargs.add_or_modify(&param("baz")), Action::Added));
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("foo=bar")));
         assert_eq!(iter.next(), Some(param("baz")));
         assert_eq!(iter.next(), None);
 
         // modify existing
-        assert!(kargs.add_or_modify(&param("foo=fuz")));
+        assert!(matches!(
+            kargs.add_or_modify(&param("foo=fuz")),
+            Action::Modified
+        ));
         iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("foo=fuz")));
         assert_eq!(iter.next(), Some(param("baz")));
@@ -669,7 +678,10 @@ mod tests {
 
         // already exists with same value returns false and doesn't
         // modify anything
-        assert!(!kargs.add_or_modify(&param("foo=fuz")));
+        assert!(matches!(
+            kargs.add_or_modify(&param("foo=fuz")),
+            Action::Existed
+        ));
         iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("foo=fuz")));
         assert_eq!(iter.next(), Some(param("baz")));
@@ -679,14 +691,17 @@ mod tests {
     #[test]
     fn test_add_or_modify_empty_cmdline() {
         let mut kargs = Cmdline::from(b"");
-        assert!(kargs.add_or_modify(&param("foo")));
+        assert!(matches!(kargs.add_or_modify(&param("foo")), Action::Added));
         assert_eq!(kargs.0, b"foo".as_slice());
     }
 
     #[test]
     fn test_add_or_modify_duplicate_parameters() {
         let mut kargs = Cmdline::from(b"a=1 a=2");
-        assert!(kargs.add_or_modify(&param("a=3")));
+        assert!(matches!(
+            kargs.add_or_modify(&param("a=3")),
+            Action::Modified
+        ));
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("a=3")));
         assert_eq!(iter.next(), None);
