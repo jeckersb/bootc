@@ -202,6 +202,16 @@ impl<'a> Cmdline<'a> {
 
         removed
     }
+
+    #[cfg(test)]
+    pub(crate) fn is_owned(&self) -> bool {
+        matches!(self.0, Cow::Owned(_))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn is_borrowed(&self) -> bool {
+        matches!(self.0, Cow::Borrowed(_))
+    }
 }
 
 impl<'a> AsRef<[u8]> for Cmdline<'a> {

@@ -26,6 +26,15 @@ impl<'a, T: AsRef<str> + ?Sized> From<&'a T> for Cmdline<'a> {
     }
 }
 
+impl From<String> for Cmdline<'static> {
+    /// Creates a new `Cmdline` from a `String`.
+    ///
+    /// Takes ownership of input and maintains it for internal owned data.
+    fn from(input: String) -> Self {
+        Self(bytes::Cmdline::from(input.into_bytes()))
+    }
+}
+
 /// An iterator over UTF-8 kernel command line parameters.
 ///
 /// This is created by the `iter` method on `CmdlineUTF8`.
@@ -124,6 +133,16 @@ impl<'a> Cmdline<'a> {
     /// Returns `true` if parameter(s) were removed.
     pub fn remove(&mut self, key: &ParameterKey) -> bool {
         self.0.remove(&key.0)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn is_owned(&self) -> bool {
+        self.0.is_owned()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn is_borrowed(&self) -> bool {
+        self.0.is_borrowed()
     }
 }
 
@@ -439,6 +458,23 @@ mod tests {
         // example taken lovingly from:
         // https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/kernel/params.c?id=89748acdf226fd1a8775ff6fa2703f8412b286c8#n160
         let kargs = Cmdline::from("foo=bar,bar2 baz=fuz wiz");
+        assert!(kargs.is_borrowed());
+        let mut iter = kargs.iter();
+
+        assert_eq!(iter.next(), Some(param("foo=bar,bar2")));
+        assert_eq!(iter.next(), Some(param("baz=fuz")));
+        assert_eq!(iter.next(), Some(param("wiz")));
+        assert_eq!(iter.next(), None);
+
+        // Test the find API
+        assert_eq!(kargs.find("foo").unwrap().value().unwrap(), "bar,bar2");
+        assert!(kargs.find("nothing").is_none());
+    }
+
+    #[test]
+    fn test_kargs_simple_from_string() {
+        let kargs = Cmdline::from("foo=bar,bar2 baz=fuz wiz".to_string());
+        assert!(kargs.is_owned());
         let mut iter = kargs.iter();
 
         assert_eq!(iter.next(), Some(param("foo=bar,bar2")));
