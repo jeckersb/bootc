@@ -166,6 +166,23 @@ impl<'a> std::fmt::Display for Cmdline<'a> {
     }
 }
 
+impl<'a> IntoIterator for &'a Cmdline<'a> {
+    type Item = Parameter<'a>;
+    type IntoIter = CmdlineIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, 'other> Extend<Parameter<'other>> for Cmdline<'a> {
+    fn extend<T: IntoIterator<Item = Parameter<'other>>>(&mut self, iter: T) {
+        for param in iter {
+            self.add(&param);
+        }
+    }
+}
+
 /// A single kernel command line parameter key
 ///
 /// Handles quoted values and treats dashes and underscores in keys as equivalent.
@@ -691,5 +708,50 @@ mod tests {
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("b=2")));
         assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_extend() {
+        let mut kargs = Cmdline::from("foo=bar baz");
+        let other = Cmdline::from("qux=quux foo=updated");
+
+        kargs.extend(&other);
+
+        // Sanity check that the lifetimes of the two Cmdlines are not
+        // tied to each other.
+        drop(other);
+
+        // Should have preserved the original foo, added qux, baz
+        // unchanged, and added the second (duplicate key) foo
+        let mut iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo=bar")));
+        assert_eq!(iter.next(), Some(param("baz")));
+        assert_eq!(iter.next(), Some(param("qux=quux")));
+        assert_eq!(iter.next(), Some(param("foo=updated")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_extend_empty() {
+        let mut kargs = Cmdline::from("");
+        let other = Cmdline::from("foo=bar baz");
+
+        kargs.extend(&other);
+
+        let mut iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo=bar")));
+        assert_eq!(iter.next(), Some(param("baz")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_into_iterator() {
+        let kargs = Cmdline::from("foo=bar baz=qux wiz");
+        let params: Vec<_> = (&kargs).into_iter().collect();
+
+        assert_eq!(params.len(), 3);
+        assert_eq!(params[0], param("foo=bar"));
+        assert_eq!(params[1], param("baz=qux"));
+        assert_eq!(params[2], param("wiz"));
     }
 }
