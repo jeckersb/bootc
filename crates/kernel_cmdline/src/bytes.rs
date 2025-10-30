@@ -14,7 +14,7 @@ use anyhow::Result;
 /// Wraps the raw command line bytes and provides methods for parsing and iterating
 /// over individual parameters. Uses copy-on-write semantics to avoid unnecessary
 /// allocations when working with borrowed data.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Cmdline<'a>(Cow<'a, [u8]>);
 
 impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Cmdline<'a> {
@@ -537,6 +537,12 @@ mod tests {
         // Test the find API
         assert_eq!(kargs.find("foo").unwrap().value.unwrap(), b"bar,bar2");
         assert!(kargs.find("nothing").is_none());
+    }
+
+    #[test]
+    fn test_cmdline_default() {
+        let kargs: Cmdline = Default::default();
+        assert_eq!(kargs.iter().next(), None);
     }
 
     #[test]
