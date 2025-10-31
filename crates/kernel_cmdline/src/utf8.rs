@@ -215,6 +215,16 @@ impl<'a> std::ops::Deref for ParameterKey<'a> {
     }
 }
 
+impl<'a, T> AsRef<T> for ParameterKey<'a>
+where
+    T: ?Sized,
+    <ParameterKey<'a> as Deref>::Target: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
+    }
+}
+
 impl<'a> ParameterKey<'a> {
     /// Construct a utf8::ParameterKey from a bytes::ParameterKey
     ///
@@ -249,7 +259,7 @@ impl PartialEq for ParameterKey<'_> {
 }
 
 /// A single kernel command line parameter.
-#[derive(Debug, Eq)]
+#[derive(Clone, Debug, Eq)]
 pub struct Parameter<'a>(bytes::Parameter<'a>);
 
 impl<'a> Parameter<'a> {
@@ -312,6 +322,13 @@ impl<'a> Parameter<'a> {
             str::from_utf8(p).expect("We only construct the underlying bytes from valid UTF-8")
         })
     }
+
+    /// Returns the parameter as a &str
+    pub fn as_str(&'a self) -> &'a str {
+        // SAFETY: We know this is valid UTF-8 since we only
+        // construct the underlying `bytes` from valid UTF-8
+        str::from_utf8(&self.0).expect("We only construct the underlying bytes from valid UTF-8")
+    }
 }
 
 impl<'a> TryFrom<bytes::Parameter<'a>> for Parameter<'a> {
@@ -344,6 +361,16 @@ impl<'a> std::fmt::Display for Parameter<'a> {
             }
             None => write!(f, "{}", self.key()),
         }
+    }
+}
+
+impl<'a> std::ops::Deref for Parameter<'a> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: We know this is valid UTF-8 since we only
+        // construct the underlying `bytes` from valid UTF-8
+        str::from_utf8(&self.0).expect("We only construct the underlying bytes from valid UTF-8")
     }
 }
 
@@ -657,10 +684,7 @@ mod tests {
         let mut kargs = Cmdline::from("console=tty0 console=ttyS1");
 
         // add new parameter with duplicate key but different value
-        assert!(matches!(
-            kargs.add(&param("console=ttyS2")),
-            Action::Added
-        ));
+        assert!(matches!(kargs.add(&param("console=ttyS2")), Action::Added));
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("console=tty0")));
         assert_eq!(iter.next(), Some(param("console=ttyS1")));

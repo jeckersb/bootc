@@ -4,6 +4,7 @@
 //! arguments, supporting both key-only switches and key-value pairs with proper quote handling.
 
 use std::borrow::Cow;
+use std::ops::Deref;
 
 use crate::{utf8, Action};
 
@@ -279,11 +280,21 @@ impl<'a, 'other> Extend<Parameter<'other>> for Cmdline<'a> {
 #[derive(Clone, Debug, Eq)]
 pub struct ParameterKey<'a>(pub(crate) &'a [u8]);
 
-impl<'a> std::ops::Deref for ParameterKey<'a> {
+impl<'a> Deref for ParameterKey<'a> {
     type Target = [u8];
 
     fn deref(&self) -> &'a Self::Target {
         self.0
+    }
+}
+
+impl<'a, T> AsRef<T> for ParameterKey<'a>
+where
+    T: ?Sized,
+    <ParameterKey<'a> as Deref>::Target: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
     }
 }
 
@@ -318,7 +329,7 @@ impl PartialEq for ParameterKey<'_> {
 }
 
 /// A single kernel command line parameter.
-#[derive(Debug, Eq)]
+#[derive(Clone, Debug, Eq)]
 pub struct Parameter<'a> {
     /// The full original value
     parameter: &'a [u8],
@@ -421,6 +432,14 @@ impl<'a> PartialEq for Parameter<'a> {
     fn eq(&self, other: &Self) -> bool {
         // Note we don't compare parameter because we want hyphen-dash insensitivity for the key
         self.key == other.key && self.value == other.value
+    }
+}
+
+impl<'a> std::ops::Deref for Parameter<'a> {
+    type Target = [u8];
+
+    fn deref(&self) -> &'a Self::Target {
+        self.parameter
     }
 }
 
@@ -713,10 +732,7 @@ mod tests {
         let mut kargs = Cmdline::from(b"console=tty0 console=ttyS1");
 
         // add new parameter with duplicate key but different value
-        assert!(matches!(
-            kargs.add(&param("console=ttyS2")),
-            Action::Added
-        ));
+        assert!(matches!(kargs.add(&param("console=ttyS2")), Action::Added));
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("console=tty0")));
         assert_eq!(iter.next(), Some(param("console=ttyS1")));
