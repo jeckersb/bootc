@@ -132,6 +132,36 @@ impl<'a> Cmdline<'a> {
         })
     }
 
+    /// Add a parameter to the command line if it doesn't already exist
+    ///
+    /// Returns `Action::Added` if the parameter did not already exist
+    /// and was added.
+    ///
+    /// Returns `Action::Existed` if the exact parameter (same key and value)
+    /// already exists. No modification was made.
+    ///
+    /// Unlike `add_or_modify`, this method will not modify existing
+    /// parameters. If a parameter with the same key exists but has a
+    /// different value, the new parameter is still added, allowing
+    /// duplicate keys (e.g., multiple `console=` parameters).
+    pub fn add(&mut self, param: &Parameter) -> Action {
+        // Check if the exact parameter already exists
+        for p in self.iter() {
+            if p == *param {
+                // Exact match found, don't add duplicate
+                return Action::Existed;
+            }
+        }
+
+        // The exact parameter was not found, so we append it.
+        let self_mut = self.0.to_mut();
+        if !self_mut.is_empty() && !self_mut.last().unwrap().is_ascii_whitespace() {
+            self_mut.push(b' ');
+        }
+        self_mut.extend_from_slice(param.parameter);
+        Action::Added
+    }
+
     /// Add or modify a parameter to the command line
     ///
     /// Returns `Action::Added` if the parameter did not exist before
@@ -676,6 +706,49 @@ mod tests {
         assert_eq!(rd_args[1], param("rd.baz"));
         assert_eq!(rd_args[2], param("rd.foo=a"));
         assert_eq!(rd_args[3], param("rd.qux=c"));
+    }
+
+    #[test]
+    fn test_add() {
+        let mut kargs = Cmdline::from(b"console=tty0 console=ttyS1");
+
+        // add new parameter with duplicate key but different value
+        assert!(matches!(
+            kargs.add(&param("console=ttyS2")),
+            Action::Added
+        ));
+        let mut iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("console=tty0")));
+        assert_eq!(iter.next(), Some(param("console=ttyS1")));
+        assert_eq!(iter.next(), Some(param("console=ttyS2")));
+        assert_eq!(iter.next(), None);
+
+        // try to add exact duplicate - should return Existed
+        assert!(matches!(
+            kargs.add(&param("console=ttyS1")),
+            Action::Existed
+        ));
+        iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("console=tty0")));
+        assert_eq!(iter.next(), Some(param("console=ttyS1")));
+        assert_eq!(iter.next(), Some(param("console=ttyS2")));
+        assert_eq!(iter.next(), None);
+
+        // add completely new parameter
+        assert!(matches!(kargs.add(&param("quiet")), Action::Added));
+        iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("console=tty0")));
+        assert_eq!(iter.next(), Some(param("console=ttyS1")));
+        assert_eq!(iter.next(), Some(param("console=ttyS2")));
+        assert_eq!(iter.next(), Some(param("quiet")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_add_empty_cmdline() {
+        let mut kargs = Cmdline::from(b"");
+        assert!(matches!(kargs.add(&param("foo")), Action::Added));
+        assert_eq!(kargs.0, b"foo".as_slice());
     }
 
     #[test]
