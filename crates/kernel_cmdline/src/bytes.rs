@@ -156,7 +156,11 @@ impl<'a> Cmdline<'a> {
 
         // The exact parameter was not found, so we append it.
         let self_mut = self.0.to_mut();
-        if !self_mut.is_empty() && !self_mut.last().unwrap().is_ascii_whitespace() {
+        if self_mut
+            .last()
+            .filter(|v| !v.is_ascii_whitespace())
+            .is_some()
+        {
             self_mut.push(b' ');
         }
         self_mut.extend_from_slice(param.parameter);
@@ -203,7 +207,11 @@ impl<'a> Cmdline<'a> {
         if !seen_key {
             // The parameter was not found, so we append it.
             let self_mut = self.0.to_mut();
-            if !self_mut.is_empty() && !self_mut.last().unwrap().is_ascii_whitespace() {
+            if self_mut
+                .last()
+                .filter(|v| !v.is_ascii_whitespace())
+                .is_some()
+            {
                 self_mut.push(b' ');
             }
             self_mut.extend_from_slice(param.parameter);
