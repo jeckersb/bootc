@@ -268,6 +268,13 @@ impl<'a> IntoIterator for &'a Cmdline<'a> {
 
 impl<'a, 'other> Extend<Parameter<'other>> for Cmdline<'a> {
     fn extend<T: IntoIterator<Item = Parameter<'other>>>(&mut self, iter: T) {
+        // Note this is O(N*M), but in practice this doesn't matter
+        // because kernel cmdlines are typically quite small (limited
+        // to at most 4k depending on arch).  Using a hash-based
+        // structure to reduce this to O(N)+C would likely raise the C
+        // portion so much as to erase any benefit from removing the
+        // combinatorial complexity.  Plus CPUs are good at
+        // caching/pipelining through contiguous memory.
         for param in iter {
             self.add(&param);
         }
