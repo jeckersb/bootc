@@ -15,7 +15,7 @@ use anyhow::Result;
 /// Wraps the raw command line bytes and provides methods for parsing and iterating
 /// over individual parameters. Uses copy-on-write semantics to avoid unnecessary
 /// allocations when working with borrowed data.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Cmdline<'a>(Cow<'a, [u8]>);
 
 impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Cmdline<'a> {
