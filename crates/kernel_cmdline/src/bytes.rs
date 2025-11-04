@@ -38,15 +38,46 @@ impl<'a> From<Vec<u8>> for Cmdline<'a> {
 ///
 /// This is created by the `iter` method on `Cmdline`.
 #[derive(Debug)]
-pub struct CmdlineIter<'a>(&'a [u8]);
+pub struct CmdlineIter<'a>(CmdlineIterBytes<'a>);
 
 impl<'a> Iterator for CmdlineIter<'a> {
     type Item = Parameter<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let (param, rest) = Parameter::parse_one(self.0);
+        self.0.next().and_then(Parameter::parse_internal)
+    }
+}
+
+/// An iterator over kernel command line parameters as byte slices.
+///
+/// This is created by the `iter_bytes` method on `Cmdline`.
+#[derive(Debug)]
+pub struct CmdlineIterBytes<'a>(&'a [u8]);
+
+impl<'a> Iterator for CmdlineIterBytes<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let input = self.0.trim_ascii_start();
+
+        if input.is_empty() {
+            self.0 = input;
+            return None;
+        }
+
+        let mut in_quotes = false;
+        let end = input.iter().position(move |c| {
+            if *c == b'"' {
+                in_quotes = !in_quotes;
+            }
+            !in_quotes && c.is_ascii_whitespace()
+        });
+
+        let end = end.unwrap_or(input.len());
+        let (param, rest) = input.split_at(end);
         self.0 = rest;
-        param
+
+        Some(param)
     }
 }
 
@@ -71,7 +102,15 @@ impl<'a> Cmdline<'a> {
     /// unquoted whitespace characters. Parameters are parsed as either
     /// key-only switches or key=value pairs.
     pub fn iter(&'a self) -> CmdlineIter<'a> {
-        CmdlineIter(&self.0)
+        CmdlineIter(self.iter_bytes())
+    }
+
+    /// Returns an iterator over all parameters in the command line as byte slices.
+    ///
+    /// This is similar to `iter()` but yields `&[u8]` directly instead of `Parameter`,
+    /// which can be more convenient when you just need the raw byte representation.
+    pub fn iter_bytes(&self) -> CmdlineIterBytes<'_> {
+        CmdlineIterBytes(&self.0)
     }
 
     /// Returns an iterator over all parameters in the command line
@@ -369,51 +408,27 @@ impl<'a> Parameter<'a> {
     /// be constructed from the input.  This occurs when the input is
     /// either empty or contains only whitespace.
     ///
-    /// Any remaining bytes not consumed from the input are discarded.
+    /// If the input contains multiple parameters, only the first one
+    /// is parsed and the rest is discarded.
     pub fn parse<T: AsRef<[u8]> + ?Sized>(input: &'a T) -> Option<Self> {
-        Self::parse_one(input).0
+        CmdlineIterBytes(input.as_ref())
+            .next()
+            .and_then(Self::parse_internal)
     }
 
-    /// Attempt to parse a single command line parameter from a slice
-    /// of bytes.
+    /// Parse a parameter from a byte slice that contains exactly one parameter.
     ///
-    /// The first tuple item contains the parsed parameter, or `None`
-    /// if a Parameter could not be constructed from the input.  This
-    /// occurs when the input is either empty or contains only
-    /// whitespace.
-    ///
-    /// Any remaining bytes not consumed from the input are returned
-    /// as the second tuple item.
-    pub fn parse_one<T: AsRef<[u8]> + ?Sized>(input: &'a T) -> (Option<Self>, &'a [u8]) {
-        let input = input.as_ref().trim_ascii_start();
-
-        if input.is_empty() {
-            return (None, input);
-        }
-
-        let mut in_quotes = false;
-        let end = input.iter().position(move |c| {
-            if *c == b'"' {
-                in_quotes = !in_quotes;
-            }
-            !in_quotes && c.is_ascii_whitespace()
-        });
-
-        let end = match end {
-            Some(end) => end,
-            None => input.len(),
-        };
-
-        let (input, rest) = input.split_at(end);
-
+    /// This is an internal method that assumes the input has already been
+    /// split into a single parameter (e.g., by CmdlineIterBytes).
+    fn parse_internal(input: &'a [u8]) -> Option<Self> {
         let equals = input.iter().position(|b| *b == b'=');
 
-        let ret = match equals {
-            None => Self {
+        match equals {
+            None => Some(Self {
                 parameter: input,
                 key: ParameterKey(input),
                 value: None,
-            },
+            }),
             Some(i) => {
                 let (key, mut value) = input.split_at(i);
                 let key = ParameterKey(key);
@@ -428,15 +443,13 @@ impl<'a> Parameter<'a> {
                     v.strip_suffix(b"\"").unwrap_or(v)
                 };
 
-                Self {
+                Some(Self {
                     parameter: input,
                     key,
                     value: Some(value),
-                }
+                })
             }
-        };
-
-        (Some(ret), rest)
+        }
     }
 
     /// Returns the key part of the parameter
@@ -479,27 +492,19 @@ mod tests {
     }
 
     #[test]
-    fn test_parameter_parse_one() {
-        let (p, rest) = Parameter::parse_one(b"foo");
-        let p = p.unwrap();
+    fn test_parameter_parse() {
+        let p = Parameter::parse(b"foo").unwrap();
         assert_eq!(p.key.0, b"foo");
         assert_eq!(p.value, None);
-        assert_eq!(rest, "".as_bytes());
 
-        // should consume one parameter and return the rest of the input
-        let (p, rest) = Parameter::parse_one(b"foo=bar baz");
-        let p = p.unwrap();
+        // should parse only the first parameter and discard the rest of the input
+        let p = Parameter::parse(b"foo=bar baz").unwrap();
         assert_eq!(p.key.0, b"foo");
         assert_eq!(p.value, Some(b"bar".as_slice()));
-        assert_eq!(rest, " baz".as_bytes());
 
         // should return None on empty or whitespace inputs
-        let (p, rest) = Parameter::parse_one(b"");
-        assert!(p.is_none());
-        assert_eq!(rest, b"".as_slice());
-        let (p, rest) = Parameter::parse_one(b"   ");
-        assert!(p.is_none());
-        assert_eq!(rest, b"".as_slice());
+        assert!(Parameter::parse(b"").is_none());
+        assert!(Parameter::parse(b"   ").is_none());
     }
 
     #[test]
@@ -534,11 +539,10 @@ mod tests {
 
     #[test]
     fn test_parameter_internal_key_whitespace() {
-        let (p, rest) = Parameter::parse_one("foo bar=baz".as_bytes());
-        let p = p.unwrap();
+        // parse should only consume the first parameter
+        let p = Parameter::parse("foo bar=baz".as_bytes()).unwrap();
         assert_eq!(p.key.0, b"foo");
         assert_eq!(p.value, None);
-        assert_eq!(rest, b" bar=baz");
     }
 
     #[test]
@@ -922,5 +926,55 @@ mod tests {
         assert_eq!(params[0], param("foo=bar"));
         assert_eq!(params[1], param("baz=qux"));
         assert_eq!(params[2], param("wiz"));
+    }
+
+    #[test]
+    fn test_iter_bytes_simple() {
+        let kargs = Cmdline::from(b"foo bar baz");
+        let params: Vec<_> = kargs.iter_bytes().collect();
+
+        assert_eq!(params.len(), 3);
+        assert_eq!(params[0], b"foo");
+        assert_eq!(params[1], b"bar");
+        assert_eq!(params[2], b"baz");
+    }
+
+    #[test]
+    fn test_iter_bytes_with_values() {
+        let kargs = Cmdline::from(b"foo=bar baz=qux wiz");
+        let params: Vec<_> = kargs.iter_bytes().collect();
+
+        assert_eq!(params.len(), 3);
+        assert_eq!(params[0], b"foo=bar");
+        assert_eq!(params[1], b"baz=qux");
+        assert_eq!(params[2], b"wiz");
+    }
+
+    #[test]
+    fn test_iter_bytes_with_quotes() {
+        let kargs = Cmdline::from(b"foo=\"bar baz\" qux");
+        let params: Vec<_> = kargs.iter_bytes().collect();
+
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0], b"foo=\"bar baz\"");
+        assert_eq!(params[1], b"qux");
+    }
+
+    #[test]
+    fn test_iter_bytes_extra_whitespace() {
+        let kargs = Cmdline::from(b"  foo   bar  ");
+        let params: Vec<_> = kargs.iter_bytes().collect();
+
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0], b"foo");
+        assert_eq!(params[1], b"bar");
+    }
+
+    #[test]
+    fn test_iter_bytes_empty() {
+        let kargs = Cmdline::from(b"");
+        let params: Vec<_> = kargs.iter_bytes().collect();
+
+        assert_eq!(params.len(), 0);
     }
 }

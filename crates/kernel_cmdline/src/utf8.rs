@@ -49,6 +49,25 @@ impl<'a> Iterator for CmdlineIter<'a> {
     }
 }
 
+/// An iterator over UTF-8 kernel command line parameters as string slices.
+///
+/// This is created by the `iter_str` method on `Cmdline`.
+#[derive(Debug)]
+pub struct CmdlineIterStr<'a>(bytes::CmdlineIterBytes<'a>);
+
+impl<'a> Iterator for CmdlineIterStr<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Get the next byte slice from the underlying iterator
+        let bytes = self.0.next()?;
+
+        // Convert to UTF-8 string slice
+        // SAFETY: We know this is valid UTF-8 since the Cmdline was constructed from valid UTF-8
+        Some(str::from_utf8(bytes).expect("Parameter bytes come from valid UTF-8 cmdline"))
+    }
+}
+
 impl<'a> Cmdline<'a> {
     /// Creates a new empty owned `Cmdline`.
     ///
@@ -82,6 +101,14 @@ impl<'a> Cmdline<'a> {
     /// key-only switches or key=value pairs.
     pub fn iter(&'a self) -> CmdlineIter<'a> {
         CmdlineIter(self.0.iter())
+    }
+
+    /// Returns an iterator over all parameters in the command line as string slices.
+    ///
+    /// This is similar to `iter()` but yields `&str` directly instead of `Parameter`,
+    /// which can be more convenient when you just need the string representation.
+    pub fn iter_str(&self) -> CmdlineIterStr<'_> {
+        CmdlineIterStr(self.0.iter_bytes())
     }
 
     /// Locate a kernel argument with the given key name.
@@ -283,36 +310,8 @@ impl<'a> Parameter<'a> {
     /// Returns `Some(Parameter)`, or `None` if a Parameter could not
     /// be constructed from the input.  This occurs when the input is
     /// either empty or contains only whitespace.
-    ///
-    /// Any remaining characters not consumed from the input are
-    /// discarded.
     pub fn parse<T: AsRef<str> + ?Sized>(input: &'a T) -> Option<Self> {
-        Self::parse_one(input).0
-    }
-
-    /// Attempt to parse a single command line parameter from a UTF-8
-    /// string.
-    ///
-    /// The first tuple item contains the parsed parameter, or `None`
-    /// if a Parameter could not be constructed from the input.  This
-    /// occurs when the input is either empty or contains only
-    /// whitespace.
-    ///
-    /// Any remaining characters not consumed from the input are
-    /// returned as the second tuple item.
-    pub fn parse_one<T: AsRef<str> + ?Sized>(input: &'a T) -> (Option<Self>, &'a str) {
-        let (bytes, rest) = bytes::Parameter::parse_one(input.as_ref().as_bytes());
-
-        // SAFETY: we know this is valid UTF-8 since input is &str,
-        // and `rest` is a subslice of that &str which was split on
-        // whitespace
-        let rest = str::from_utf8(rest)
-            .expect("Splitting UTF-8 on ascii whitespace cannot produce invalid UTF-8 substrings");
-
-        match bytes {
-            Some(p) => (Some(Self(p)), rest),
-            None => (None, rest),
-        }
+        bytes::Parameter::parse(input.as_ref().as_bytes()).map(Self)
     }
 
     /// Construct a utf8::Parameter from a bytes::Parameter
@@ -335,13 +334,6 @@ impl<'a> Parameter<'a> {
             // construct the underlying `bytes` from valid UTF-8
             str::from_utf8(p).expect("We only construct the underlying bytes from valid UTF-8")
         })
-    }
-
-    /// Returns the parameter as a &str
-    pub fn as_str(&'a self) -> &'a str {
-        // SAFETY: We know this is valid UTF-8 since we only
-        // construct the underlying `bytes` from valid UTF-8
-        str::from_utf8(&self.0).expect("We only construct the underlying bytes from valid UTF-8")
     }
 }
 
@@ -404,27 +396,19 @@ mod tests {
     }
 
     #[test]
-    fn test_parameter_parse_one() {
-        let (p, rest) = Parameter::parse_one("foo");
-        let p = p.unwrap();
+    fn test_parameter_parse() {
+        let p = Parameter::parse("foo").unwrap();
         assert_eq!(p.key(), "foo".into());
         assert_eq!(p.value(), None);
-        assert_eq!(rest, "");
 
-        // should consume one parameter and return the rest of the input
-        let (p, rest) = Parameter::parse_one("foo=bar baz");
-        let p = p.unwrap();
+        // should parse only the first parameter and discard the rest of the input
+        let p = Parameter::parse("foo=bar baz").unwrap();
         assert_eq!(p.key(), "foo".into());
         assert_eq!(p.value(), Some("bar"));
-        assert_eq!(rest, " baz");
 
         // should return None on empty or whitespace inputs
-        let (p, rest) = Parameter::parse_one("");
-        assert!(p.is_none());
-        assert_eq!(rest, "");
-        let (p, rest) = Parameter::parse_one("   ");
-        assert!(p.is_none());
-        assert_eq!(rest, "");
+        assert!(Parameter::parse("").is_none());
+        assert!(Parameter::parse("   ").is_none());
     }
 
     #[test]
@@ -453,11 +437,10 @@ mod tests {
 
     #[test]
     fn test_parameter_internal_key_whitespace() {
-        let (p, rest) = Parameter::parse_one("foo bar=baz");
-        let p = p.unwrap();
+        // parse should only consume the first parameter
+        let p = Parameter::parse("foo bar=baz").unwrap();
         assert_eq!(p.key(), "foo".into());
         assert_eq!(p.value(), None);
-        assert_eq!(rest, " bar=baz");
     }
 
     #[test]
