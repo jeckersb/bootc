@@ -7,6 +7,7 @@ use std::io::{BufRead, Write};
 
 use anyhow::Ok;
 use anyhow::{anyhow, Context, Result};
+use bootc_kernel_cmdline::utf8::CmdlineOwned;
 use cap_std::fs::{Dir, MetadataExt};
 use cap_std_ext::cap_std;
 use cap_std_ext::dirext::CapStdExtDirExt;
@@ -588,9 +589,9 @@ async fn deploy(
     let (stateroot, override_kargs) = match &from {
         MergeState::MergeDeployment(deployment) => {
             let kargs = crate::bootc_kargs::get_kargs(sysroot, &deployment, image)?;
-            (deployment.stateroot().into(), kargs)
+            (deployment.stateroot().into(), Some(kargs))
         }
-        MergeState::Reset { stateroot, kargs } => (stateroot.clone(), kargs.clone()),
+        MergeState::Reset { stateroot, kargs } => (stateroot.clone(), Some(kargs.clone())),
     };
     // Clone all the things to move to worker thread
     let ostree = sysroot.get_ostree_cloned()?;
@@ -607,13 +608,15 @@ async fn deploy(
             let stateroot = Some(stateroot);
             let mut opts = ostree::SysrootDeployTreeOpts::default();
 
-            // Because the C API expects a Vec<&str>, we need to generate a new Vec<>
-            // that borrows.
-            let override_kargs = override_kargs
-                .iter()
-                .map(|s| s.as_str())
-                .collect::<Vec<_>>();
-            opts.override_kernel_argv = Some(&override_kargs);
+            // Because the C API expects a Vec<&str>, convert the Cmdline to string slices.
+            // The references borrow from the Cmdline, which outlives this usage.
+            let override_kargs_refs = override_kargs
+                .as_ref()
+                .map(|kargs| kargs.iter_str().collect::<Vec<_>>());
+            if let Some(kargs) = override_kargs_refs.as_ref() {
+                opts.override_kernel_argv = Some(kargs);
+            }
+
             let deployments = ostree.deployments();
             let merge_deployment = merge_deployment.map(|m| &deployments[m]);
             let origin = glib::KeyFile::new();
@@ -658,7 +661,7 @@ pub(crate) enum MergeState {
     /// provided initial state.
     Reset {
         stateroot: String,
-        kargs: Vec<String>,
+        kargs: CmdlineOwned,
     },
 }
 impl MergeState {
