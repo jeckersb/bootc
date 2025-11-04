@@ -50,6 +50,13 @@ impl<'a> Iterator for CmdlineIter<'a> {
 }
 
 impl<'a> Cmdline<'a> {
+    /// Creates a new empty owned `Cmdline`.
+    ///
+    /// This is equivalent to `Cmdline::default()` but makes ownership explicit.
+    pub fn new() -> Cmdline<'static> {
+        Cmdline::default()
+    }
+
     /// Reads the kernel command line from `/proc/cmdline`.
     ///
     /// Returns an error if:
@@ -548,6 +555,16 @@ mod tests {
     fn test_cmdline_default() {
         let kargs: Cmdline = Default::default();
         assert_eq!(kargs.iter().next(), None);
+    }
+
+    #[test]
+    fn test_cmdline_new() {
+        let kargs = Cmdline::new();
+        assert_eq!(kargs.iter().next(), None);
+        assert!(kargs.is_owned());
+
+        // Verify we can store it in a 'static context
+        let _static_kargs: Cmdline<'static> = Cmdline::new();
     }
 
     #[test]
