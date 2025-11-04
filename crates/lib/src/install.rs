@@ -27,6 +27,7 @@ use std::time::Duration;
 
 use aleph::InstallAleph;
 use anyhow::{anyhow, ensure, Context, Result};
+use bootc_kernel_cmdline::utf8::{Cmdline, Parameter};
 use bootc_utils::CommandRunExt;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
@@ -919,7 +920,7 @@ async fn install_container(
         merged_ostree_root.downcast_ref().unwrap(),
         std::env::consts::ARCH,
     )?;
-    let kargsd = kargsd.iter().map(|s| s.as_str());
+    let kargsd = kargsd.iter_str().collect::<Vec<_>>();
 
     // If the target uses aboot, then we need to set that bootloader in the ostree
     // config before deploying the commit
@@ -2318,29 +2319,32 @@ pub(crate) async fn install_reset(opts: InstallResetOpts) -> Result<()> {
 
     // Compute the kernel arguments to inherit. By default, that's only those involved
     // in the root filesystem.
-    let root_kargs = if opts.no_root_kargs {
-        Vec::new()
-    } else {
+    let mut kargs = crate::bootc_kargs::get_kargs_in_root(rootfs, std::env::consts::ARCH)?;
+
+    // Extend with root kargs
+    if !opts.no_root_kargs {
         let bootcfg = booted_ostree
             .deployment
             .bootconfig()
             .ok_or_else(|| anyhow!("Missing bootcfg for booted deployment"))?;
         if let Some(options) = bootcfg.get("options") {
-            let options = options.split_ascii_whitespace().collect::<Vec<_>>();
-            crate::bootc_kargs::root_args_from_cmdline(&options)
-                .into_iter()
-                .map(ToOwned::to_owned)
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
+            let options_cmdline = Cmdline::from(options.as_str());
+            let root_kargs = crate::bootc_kargs::root_args_from_cmdline(&options_cmdline);
+            kargs.extend(&root_kargs);
         }
-    };
+    }
 
-    let kargs = crate::bootc_kargs::get_kargs_in_root(rootfs, std::env::consts::ARCH)?
-        .into_iter()
-        .chain(root_kargs.into_iter())
-        .chain(opts.karg.unwrap_or_default())
-        .collect::<Vec<_>>();
+    // Extend with user-provided kargs
+    if let Some(user_kargs) = opts.karg {
+        let user_kargs = user_kargs
+            .iter()
+            .map(|arg| {
+                Parameter::parse(arg).ok_or_else(|| anyhow!("Unable to parse parameter: {arg}"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        kargs.extend(user_kargs);
+    }
 
     let from = MergeState::Reset {
         stateroot: target_stateroot.clone(),
