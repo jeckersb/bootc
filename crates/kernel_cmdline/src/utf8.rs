@@ -191,6 +191,14 @@ impl<'a> Cmdline<'a> {
         self.0.remove(&key.0)
     }
 
+    /// Remove all parameters that exactly match the given parameter
+    /// from the command line
+    ///
+    /// Returns `true` if parameter(s) were removed.
+    pub fn remove_exact(&mut self, param: &Parameter) -> bool {
+        self.0.remove_exact(&param.0)
+    }
+
     #[cfg(test)]
     pub(crate) fn is_owned(&self) -> bool {
         self.0.is_owned()
@@ -826,6 +834,25 @@ mod tests {
         assert!(kargs.remove(&"a".into()));
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("b=2")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_remove_exact() {
+        let mut kargs = Cmdline::from("foo foo=bar foo=baz");
+
+        // remove existing
+        assert!(kargs.remove_exact(&param("foo=bar")));
+        let mut iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo")));
+        assert_eq!(iter.next(), Some(param("foo=baz")));
+        assert_eq!(iter.next(), None);
+
+        // doesn't exist? returns false and doesn't modify anything
+        assert!(!kargs.remove_exact(&param("foo=wuz")));
+        iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo")));
+        assert_eq!(iter.next(), Some(param("foo=baz")));
         assert_eq!(iter.next(), None);
     }
 

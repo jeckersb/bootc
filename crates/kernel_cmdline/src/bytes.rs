@@ -294,6 +294,29 @@ impl<'a> Cmdline<'a> {
         removed
     }
 
+    /// Remove all parameters that exactly match the given parameter
+    /// from the command line
+    ///
+    /// Returns `true` if parameter(s) were removed.
+    pub fn remove_exact(&mut self, param: &Parameter) -> bool {
+        let mut removed = false;
+        let mut new_params = Vec::new();
+
+        for p in self.iter() {
+            if p == *param {
+                removed = true;
+            } else {
+                new_params.push(p.parameter);
+            }
+        }
+
+        if removed {
+            self.0 = Cow::Owned(new_params.join(b" ".as_slice()));
+        }
+
+        removed
+    }
+
     #[cfg(test)]
     pub(crate) fn is_owned(&self) -> bool {
         matches!(self.0, Cow::Owned(_))
@@ -901,6 +924,25 @@ mod tests {
         assert!(kargs.remove(&"a".into()));
         let mut iter = kargs.iter();
         assert_eq!(iter.next(), Some(param("b=2")));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_remove_exact() {
+        let mut kargs = Cmdline::from(b"foo foo=bar foo=baz");
+
+        // remove existing
+        assert!(kargs.remove_exact(&param("foo=bar")));
+        let mut iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo")));
+        assert_eq!(iter.next(), Some(param("foo=baz")));
+        assert_eq!(iter.next(), None);
+
+        // doesn't exist? returns false and doesn't modify anything
+        assert!(!kargs.remove_exact(&param("foo=wuz")));
+        iter = kargs.iter();
+        assert_eq!(iter.next(), Some(param("foo")));
+        assert_eq!(iter.next(), Some(param("foo=baz")));
         assert_eq!(iter.next(), None);
     }
 
