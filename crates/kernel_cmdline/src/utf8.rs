@@ -426,6 +426,16 @@ mod tests {
     fn test_parameter_quoted() {
         let p = param("foo=\"quoted value\"");
         assert_eq!(p.value(), Some("quoted value"));
+
+        let p = param("foo=\"unclosed quotes");
+        assert_eq!(p.value(), Some("unclosed quotes"));
+
+        let p = param("foo=trailing_quotes\"");
+        assert_eq!(p.value(), Some("trailing_quotes"));
+
+        let outside_quoted = param("\"foo=quoted value\"");
+        let value_quoted = param("foo=\"quoted value\"");
+        assert_eq!(outside_quoted, value_quoted);
     }
 
     #[test]
@@ -447,9 +457,22 @@ mod tests {
     fn test_parameter_pathological() {
         // valid things that certified insane people would do
 
-        // quotes don't get removed from keys
-        let p = param("\"\"\"");
-        assert_eq!(p.key(), "\"\"\"".into());
+        // you can quote just the key part in a key-value param, but
+        // the end quote is actually part of the key as far as the
+        // kernel is concerned...
+        let p = param("\"foo\"=bar");
+        assert_eq!(p.key(), ParameterKey::from("foo\""));
+        assert_eq!(p.value(), Some("bar"));
+        // and it is definitely not equal to an unquoted foo ...
+        assert_ne!(p, param("foo=bar"));
+
+        // ... but if you close the quote immediately after the
+        // equals sign, it does get removed.
+        let p = param("\"foo=\"bar");
+        assert_eq!(p.key(), ParameterKey::from("foo"));
+        assert_eq!(p.value(), Some("bar"));
+        // ... so of course this makes sense ...
+        assert_eq!(p, param("foo=bar"));
 
         // quotes only get stripped from the absolute ends of values
         let p = param("foo=\"internal\"quotes\"are\"ok\"");

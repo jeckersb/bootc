@@ -421,27 +421,31 @@ impl<'a> Parameter<'a> {
     /// This is an internal method that assumes the input has already been
     /// split into a single parameter (e.g., by CmdlineIterBytes).
     fn parse_internal(input: &'a [u8]) -> Option<Self> {
-        let equals = input.iter().position(|b| *b == b'=');
+        // *Only* the first and last double quotes are stripped
+        let dequoted_input = input.strip_prefix(b"\"").unwrap_or(input);
+        let dequoted_input = dequoted_input.strip_suffix(b"\"").unwrap_or(dequoted_input);
+
+        let equals = dequoted_input.iter().position(|b| *b == b'=');
 
         match equals {
             None => Some(Self {
                 parameter: input,
-                key: ParameterKey(input),
+                key: ParameterKey(dequoted_input),
                 value: None,
             }),
             Some(i) => {
-                let (key, mut value) = input.split_at(i);
+                let (key, mut value) = dequoted_input.split_at(i);
                 let key = ParameterKey(key);
 
                 // skip `=`, we know it's the first byte because we
                 // found it above
                 value = &value[1..];
 
-                // *Only* the first and last double quotes are stripped
-                value = {
-                    let v = value.strip_prefix(b"\"").unwrap_or(value);
-                    v.strip_suffix(b"\"").unwrap_or(v)
-                };
+                // If there is a quote after the equals, skip it.  If
+                // there was a closing quote at the end of the value,
+                // we would have already removed it in
+                // `dequoted_input` above
+                value = value.strip_prefix(b"\"").unwrap_or(value);
 
                 Some(Self {
                     parameter: input,
@@ -528,6 +532,10 @@ mod tests {
 
         let p = param("foo=trailing_quotes\"");
         assert_eq!(p.value, Some(b"trailing_quotes".as_slice()));
+
+        let outside_quoted = param("\"foo=quoted value\"");
+        let value_quoted = param("foo=\"quoted value\"");
+        assert_eq!(outside_quoted, value_quoted);
     }
 
     #[test]
@@ -549,9 +557,22 @@ mod tests {
     fn test_parameter_pathological() {
         // valid things that certified insane people would do
 
-        // quotes don't get removed from keys
-        let p = param("\"\"\"");
-        assert_eq!(p.key.0, b"\"\"\"");
+        // you can quote just the key part in a key-value param, but
+        // the end quote is actually part of the key as far as the
+        // kernel is concerned...
+        let p = param("\"foo\"=bar");
+        assert_eq!(p.key.0, b"foo\"");
+        assert_eq!(p.value, Some(b"bar".as_slice()));
+        // and it is definitely not equal to an unquoted foo ...
+        assert_ne!(p, param("foo=bar"));
+
+        // ... but if you close the quote immediately after the
+        // equals sign, it does get removed.
+        let p = param("\"foo=\"bar");
+        assert_eq!(p.key.0, b"foo");
+        assert_eq!(p.value, Some(b"bar".as_slice()));
+        // ... so of course this makes sense ...
+        assert_eq!(p, param("foo=bar"));
 
         // quotes only get stripped from the absolute ends of values
         let p = param("foo=\"internal\"quotes\"are\"ok\"");
