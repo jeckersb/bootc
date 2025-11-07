@@ -10,12 +10,14 @@ use tap.nu
 const kargsv0 = ["testarg=foo", "othertestkarg", "thirdkarg=bar"]
 const kargsv1 = ["testarg=foo", "thirdkarg=baz"]
 let removed = ($kargsv0 | filter { not ($in in $kargsv1) })
+const quoted_karg = '"thisarg=quoted with spaces"'
 
 # This code runs on *each* boot.
 # Here we just capture information.
 bootc status
 let st = bootc status --json | from json
 let booted = $st.status.booted.image
+let is_composefs = ($st.status.booted.composefs? != null)
 
 # Parse the kernel commandline into a list.
 # This is not a proper parser, but good enough
@@ -76,6 +78,13 @@ RUN echo test content > /usr/share/blah.txt
     let new_root_mtime = ls -Dl /ostree/bootc | get modified
     assert ($new_root_mtime > $orig_root_mtime)
 
+    # Test for https://github.com/ostreedev/ostree/issues/3544
+    # Add a quoted karg using rpm-ostree if available
+    if not $is_composefs {
+        print "Adding quoted karg via rpm-ostree to test ostree issue #3544"
+        rpm-ostree kargs --append=($quoted_karg)
+    }
+
     # And reboot into it
     tmt-reboot
 }
@@ -125,6 +134,14 @@ def second_boot [] {
         assert ($x in $cmdline)
     }
 
+    # Test for https://github.com/ostreedev/ostree/issues/3544
+    # Verify the quoted karg added via rpm-ostree is still present
+    if not $is_composefs {
+        print "Verifying quoted karg persistence (ostree issue #3544)"
+	let cmdline = open /proc/cmdline
+        assert ($quoted_karg in $cmdline) $"Expected quoted karg ($quoted_karg) not found in cmdline"
+    }
+
     # Now do another build where we drop one of the kargs
     let td = mktemp -d
     cd $td
@@ -167,6 +184,14 @@ def third_boot [] {
     # And the kargs that should be removed are gone
     for x in $removed {
         assert not ($removed in $cmdline)
+    }
+
+    # Test for https://github.com/ostreedev/ostree/issues/3544
+    # Verify the quoted karg added via rpm-ostree is still present after upgrade
+    if not $is_composefs {
+        print "Verifying quoted karg persistence after upgrade (ostree issue #3544)"
+	let cmdline = open /proc/cmdline
+        assert ($quoted_karg in $cmdline) $"Expected quoted karg ($quoted_karg) not found in cmdline after upgrade"
     }
 
     tap ok
