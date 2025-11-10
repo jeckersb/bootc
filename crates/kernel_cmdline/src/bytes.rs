@@ -30,6 +30,14 @@ impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Cmdline<'a> {
     }
 }
 
+impl Deref for Cmdline<'_> {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl From<Vec<u8>> for CmdlineOwned {
     /// Creates a new `Cmdline` from an owned `Vec<u8>`.
     fn from(input: Vec<u8>) -> Self {
