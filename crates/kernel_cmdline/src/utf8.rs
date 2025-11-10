@@ -213,6 +213,16 @@ impl<'a> Cmdline<'a> {
     }
 }
 
+impl Deref for Cmdline<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: We know this is valid UTF-8 since we only
+        // construct the underlying `bytes` from valid UTF-8
+        str::from_utf8(&self.0).expect("We only construct the underlying bytes from valid UTF-8")
+    }
+}
+
 impl<'a> AsRef<str> for Cmdline<'a> {
     fn as_ref(&self) -> &str {
         str::from_utf8(self.0.as_ref())
