@@ -18,6 +18,9 @@ use anyhow::Result;
 #[derive(Clone, Debug, Default)]
 pub struct Cmdline<'a>(Cow<'a, [u8]>);
 
+/// An owned Cmdline.  Alias for `Cmdline<'static>`.
+pub type CmdlineOwned = Cmdline<'static>;
+
 impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Cmdline<'a> {
     /// Creates a new `Cmdline` from any type that can be referenced as bytes.
     ///
@@ -27,7 +30,7 @@ impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for Cmdline<'a> {
     }
 }
 
-impl<'a> From<Vec<u8>> for Cmdline<'a> {
+impl From<Vec<u8>> for CmdlineOwned {
     /// Creates a new `Cmdline` from an owned `Vec<u8>`.
     fn from(input: Vec<u8>) -> Self {
         Self(Cow::Owned(input))
@@ -85,7 +88,7 @@ impl<'a> Cmdline<'a> {
     /// Creates a new empty owned `Cmdline`.
     ///
     /// This is equivalent to `Cmdline::default()` but makes ownership explicit.
-    pub fn new() -> Cmdline<'static> {
+    pub fn new() -> CmdlineOwned {
         Cmdline::default()
     }
 
@@ -670,8 +673,8 @@ mod tests {
         assert_eq!(kargs.iter().next(), None);
         assert!(kargs.is_owned());
 
-        // Verify we can store it in a 'static context
-        let _static_kargs: Cmdline<'static> = Cmdline::new();
+        // Verify we can store it in an owned ('static) context
+        let _static_kargs: CmdlineOwned = Cmdline::new();
     }
 
     #[test]
