@@ -232,8 +232,7 @@ impl<'a> AsRef<str> for Cmdline<'a> {
 
 impl<'a> std::fmt::Display for Cmdline<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let as_str: &str = self.as_ref();
-        write!(f, "{as_str}")
+        f.write_str(self)
     }
 }
 
@@ -267,7 +266,7 @@ impl<'a, 'other> Extend<Parameter<'other>> for Cmdline<'a> {
 #[derive(Clone, Debug, Eq)]
 pub struct ParameterKey<'a>(bytes::ParameterKey<'a>);
 
-impl<'a> std::ops::Deref for ParameterKey<'a> {
+impl<'a> Deref for ParameterKey<'a> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
@@ -305,8 +304,7 @@ impl<'a, T: AsRef<str> + ?Sized> From<&'a T> for ParameterKey<'a> {
 
 impl<'a> std::fmt::Display for ParameterKey<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let as_str: &str = self;
-        write!(f, "{as_str}")
+        f.write_str(self)
     }
 }
 
@@ -378,20 +376,11 @@ impl<'a> TryFrom<bytes::Parameter<'a>> for Parameter<'a> {
 
 impl<'a> std::fmt::Display for Parameter<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        match self.value() {
-            Some(v) => {
-                if v.contains(|ch: char| ch.is_ascii_whitespace()) {
-                    write!(f, "{}=\"{}\"", self.key(), v)
-                } else {
-                    write!(f, "{}={}", self.key(), v)
-                }
-            }
-            None => write!(f, "{}", self.key()),
-        }
+        f.write_str(self)
     }
 }
 
-impl<'a> std::ops::Deref for Parameter<'a> {
+impl<'a> Deref for Parameter<'a> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
@@ -457,6 +446,18 @@ mod tests {
         let outside_quoted = param("\"foo=quoted value\"");
         let value_quoted = param("foo=\"quoted value\"");
         assert_eq!(outside_quoted, value_quoted);
+    }
+
+    #[test]
+    fn test_parameter_display() {
+        // Basically this should always return the original data
+        // without modification.
+
+        // unquoted stays unquoted
+        assert_eq!(param("foo").to_string(), "foo");
+
+        // quoted stays quoted
+        assert_eq!(param("\"foo\"").to_string(), "\"foo\"");
     }
 
     #[test]
