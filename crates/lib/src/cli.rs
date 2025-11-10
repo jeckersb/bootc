@@ -740,7 +740,7 @@ pub(crate) fn require_root(is_container: bool) -> Result<()> {
     );
 
     ensure!(
-        rustix::thread::capability_is_in_bounding_set(rustix::thread::Capability::SystemAdmin)?,
+        rustix::thread::capability_is_in_bounding_set(rustix::thread::CapabilitySet::SYS_ADMIN)?,
         if is_container {
             "The container must be executed with full privileges (e.g. --privileged flag)"
         } else {
