@@ -8,13 +8,14 @@ use std::ops::Deref;
 use crate::{bytes, Action};
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 /// A parsed UTF-8 kernel command line.
 ///
 /// Wraps the raw command line bytes and provides methods for parsing and iterating
 /// over individual parameters. Uses copy-on-write semantics to avoid unnecessary
 /// allocations when working with borrowed data.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Cmdline<'a>(bytes::Cmdline<'a>);
 
 /// An owned `Cmdline`.  Alias for `Cmdline<'static>`.

@@ -9,6 +9,7 @@ repository = "https://github.com/bootc-dev/bootc"
 [dependencies]
 # Workspace dependencies
 anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 similar-asserts = { workspace = true }
