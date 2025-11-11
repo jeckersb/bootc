@@ -27,7 +27,7 @@ use std::time::Duration;
 
 use aleph::InstallAleph;
 use anyhow::{anyhow, ensure, Context, Result};
-use bootc_kernel_cmdline::utf8::{Cmdline, Parameter};
+use bootc_kernel_cmdline::utf8::{Cmdline, CmdlineOwned};
 use bootc_utils::CommandRunExt;
 use camino::Utf8Path;
 use camino::Utf8PathBuf;
@@ -434,7 +434,7 @@ pub(crate) struct InstallResetOpts {
     ///
     /// Example: --karg=nosmt --karg=console=ttyS0,114800n8
     #[clap(long)]
-    karg: Option<Vec<String>>,
+    karg: Option<Vec<CmdlineOwned>>,
 }
 
 /// Global state captured from the container.
@@ -2335,15 +2335,10 @@ pub(crate) async fn install_reset(opts: InstallResetOpts) -> Result<()> {
     }
 
     // Extend with user-provided kargs
-    if let Some(user_kargs) = opts.karg {
-        let user_kargs = user_kargs
-            .iter()
-            .map(|arg| {
-                Parameter::parse(arg).ok_or_else(|| anyhow!("Unable to parse parameter: {arg}"))
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        kargs.extend(user_kargs);
+    if let Some(user_kargs) = opts.karg.as_ref() {
+        for karg in user_kargs {
+            kargs.extend(karg);
+        }
     }
 
     let from = MergeState::Reset {
