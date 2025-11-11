@@ -212,6 +212,7 @@ name = "bootc-kernel-cmdline"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "serde",
  "similar-asserts",
  "static_assertions",
 ]
