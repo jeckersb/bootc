@@ -39,6 +39,16 @@ impl Deref for Cmdline<'_> {
     }
 }
 
+impl<'a, T> AsRef<T> for Cmdline<'a>
+where
+    T: ?Sized,
+    <Cmdline<'a> as Deref>::Target: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
+    }
+}
+
 impl From<Vec<u8>> for CmdlineOwned {
     /// Creates a new `Cmdline` from an owned `Vec<u8>`.
     fn from(input: Vec<u8>) -> Self {
@@ -340,12 +350,6 @@ impl<'a> Cmdline<'a> {
     }
 }
 
-impl<'a> AsRef<[u8]> for Cmdline<'a> {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
 impl<'a> IntoIterator for &'a Cmdline<'a> {
     type Item = Parameter<'a>;
     type IntoIter = CmdlineIter<'a>;
@@ -376,10 +380,10 @@ impl<'a, 'other> Extend<Parameter<'other>> for Cmdline<'a> {
 #[derive(Clone, Debug, Eq)]
 pub struct ParameterKey<'a>(pub(crate) &'a [u8]);
 
-impl<'a> Deref for ParameterKey<'a> {
+impl Deref for ParameterKey<'_> {
     type Target = [u8];
 
-    fn deref(&self) -> &'a Self::Target {
+    fn deref(&self) -> &Self::Target {
         self.0
     }
 }
@@ -509,11 +513,21 @@ impl<'a> PartialEq for Parameter<'a> {
     }
 }
 
-impl<'a> std::ops::Deref for Parameter<'a> {
+impl Deref for Parameter<'_> {
     type Target = [u8];
 
-    fn deref(&self) -> &'a Self::Target {
+    fn deref(&self) -> &Self::Target {
         self.parameter
+    }
+}
+
+impl<'a, T> AsRef<T> for Parameter<'a>
+where
+    T: ?Sized,
+    <Parameter<'a> as Deref>::Target: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
     }
 }
 
