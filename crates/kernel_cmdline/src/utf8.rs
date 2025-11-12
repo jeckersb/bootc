@@ -224,10 +224,13 @@ impl Deref for Cmdline<'_> {
     }
 }
 
-impl<'a> AsRef<str> for Cmdline<'a> {
-    fn as_ref(&self) -> &str {
-        str::from_utf8(self.0.as_ref())
-            .expect("We only construct the underlying bytes from valid UTF-8")
+impl<'a, T> AsRef<T> for Cmdline<'a>
+where
+    T: ?Sized,
+    <Cmdline<'a> as Deref>::Target: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
     }
 }
 
@@ -267,7 +270,7 @@ impl<'a, 'other> Extend<Parameter<'other>> for Cmdline<'a> {
 #[derive(Clone, Debug, Eq)]
 pub struct ParameterKey<'a>(bytes::ParameterKey<'a>);
 
-impl<'a> Deref for ParameterKey<'a> {
+impl Deref for ParameterKey<'_> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
@@ -381,13 +384,23 @@ impl<'a> std::fmt::Display for Parameter<'a> {
     }
 }
 
-impl<'a> Deref for Parameter<'a> {
+impl Deref for Parameter<'_> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
         // SAFETY: We know this is valid UTF-8 since we only
         // construct the underlying `bytes` from valid UTF-8
         str::from_utf8(&self.0).expect("We only construct the underlying bytes from valid UTF-8")
+    }
+}
+
+impl<'a, T> AsRef<T> for Parameter<'a>
+where
+    T: ?Sized,
+    <Parameter<'a> as Deref>::Target: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
     }
 }
 
@@ -769,7 +782,7 @@ mod tests {
     fn test_add_empty_cmdline() {
         let mut kargs = Cmdline::from("");
         assert!(matches!(kargs.add(&param("foo")), Action::Added));
-        assert_eq!(kargs.as_ref(), "foo");
+        assert_eq!(&*kargs, "foo");
     }
 
     #[test]
@@ -809,7 +822,7 @@ mod tests {
     fn test_add_or_modify_empty_cmdline() {
         let mut kargs = Cmdline::from("");
         assert!(matches!(kargs.add_or_modify(&param("foo")), Action::Added));
-        assert_eq!(kargs.as_ref(), "foo");
+        assert_eq!(&*kargs, "foo");
     }
 
     #[test]
