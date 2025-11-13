@@ -4,6 +4,7 @@
 //! arguments, supporting both key-only switches and key-value pairs with proper quote handling.
 
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::ops::Deref;
 
 use crate::{utf8, Action};
@@ -377,7 +378,7 @@ impl<'a, 'other> Extend<Parameter<'other>> for Cmdline<'a> {
 /// A single kernel command line parameter key
 ///
 /// Handles quoted values and treats dashes and underscores in keys as equivalent.
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Debug)]
 pub struct ParameterKey<'a>(pub(crate) &'a [u8]);
 
 impl Deref for ParameterKey<'_> {
@@ -404,32 +405,42 @@ impl<'a, T: AsRef<[u8]> + ?Sized> From<&'a T> for ParameterKey<'a> {
     }
 }
 
+impl ParameterKey<'_> {
+    /// Returns an iterator over the canonicalized bytes of the
+    /// parameter, with dashes turned into underscores.
+    fn iter(&self) -> impl Iterator<Item = u8> + use<'_> {
+        self.0
+            .iter()
+            .map(|&c: &u8| if c == b'-' { b'_' } else { c })
+    }
+}
+
 impl PartialEq for ParameterKey<'_> {
     /// Compares two parameter keys for equality.
     ///
     /// Keys are compared with dashes and underscores treated as equivalent.
     /// This comparison is case-sensitive.
     fn eq(&self, other: &Self) -> bool {
-        let dedashed = |&c: &u8| {
-            if c == b'-' {
-                b'_'
-            } else {
-                c
-            }
-        };
+        self.iter().eq(other.iter())
+    }
+}
 
-        // We can't just zip() because leading substrings will match
-        //
-        // For example, "foo" == "foobar" since the zipped iterator
-        // only compares the first three chars.
-        let our_iter = self.0.iter().map(dedashed);
-        let other_iter = other.0.iter().map(dedashed);
-        our_iter.eq(other_iter)
+impl Eq for ParameterKey<'_> {}
+
+impl Ord for ParameterKey<'_> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.iter().cmp(other.iter())
+    }
+}
+
+impl PartialOrd for ParameterKey<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
 /// A single kernel command line parameter.
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Debug)]
 pub struct Parameter<'a> {
     /// The full original value
     parameter: &'a [u8],
@@ -506,10 +517,24 @@ impl<'a> Parameter<'a> {
     }
 }
 
-impl<'a> PartialEq for Parameter<'a> {
+impl PartialEq for Parameter<'_> {
     fn eq(&self, other: &Self) -> bool {
         // Note we don't compare parameter because we want hyphen-dash insensitivity for the key
         self.key == other.key && self.value == other.value
+    }
+}
+
+impl Eq for Parameter<'_> {}
+
+impl Ord for Parameter<'_> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.key.cmp(&other.key).then(self.value.cmp(&other.value))
+    }
+}
+
+impl PartialOrd for Parameter<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
