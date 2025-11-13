@@ -196,7 +196,7 @@ pub(crate) struct InstallConfigOpts {
     ///
     /// Example: --karg=nosmt --karg=console=ttyS0,115200n8
     #[clap(long)]
-    pub(crate) karg: Option<Vec<String>>,
+    pub(crate) karg: Option<Vec<CmdlineOwned>>,
 
     /// The path to an `authorized_keys` that will be injected into the `root` account.
     ///
@@ -920,7 +920,6 @@ async fn install_container(
         merged_ostree_root.downcast_ref().unwrap(),
         std::env::consts::ARCH,
     )?;
-    let kargsd = kargsd.iter_str().collect::<Vec<_>>();
 
     // If the target uses aboot, then we need to set that bootloader in the ostree
     // config before deploying the commit
@@ -942,28 +941,36 @@ async fn install_container(
     }
 
     // Keep this in sync with install/completion.rs for the Anaconda fixups
-    let install_config_kargs = state
-        .install_config
-        .as_ref()
-        .and_then(|c| c.kargs.as_ref())
-        .into_iter()
-        .flatten()
-        .map(|s| s.as_str());
+    let install_config_kargs = state.install_config.as_ref().and_then(|c| c.kargs.as_ref());
+
     // Final kargs, in order:
     // - root filesystem kargs
     // - install config kargs
     // - kargs.d from container image
     // - args specified on the CLI
-    let kargs = root_setup
-        .kargs
-        .iter()
-        .map(|v| v.as_str())
-        .chain(install_config_kargs)
-        .chain(kargsd)
-        .chain(state.config_opts.karg.iter().flatten().map(|v| v.as_str()))
-        .collect::<Vec<_>>();
+    let mut kargs = Cmdline::new();
+
+    kargs.extend(&root_setup.kargs);
+
+    if let Some(install_config_kargs) = install_config_kargs {
+        for karg in install_config_kargs {
+            kargs.extend(&Cmdline::from(karg.as_str()));
+        }
+    }
+
+    kargs.extend(&kargsd);
+
+    if let Some(cli_kargs) = state.config_opts.karg.as_ref() {
+        for karg in cli_kargs {
+            kargs.extend(karg);
+        }
+    }
+
+    // Finally map into &[&str] for ostree_container
+    let kargs_strs: Vec<&str> = kargs.iter_str().collect();
+
     let mut options = ostree_container::deploy::DeployOpts::default();
-    options.kargs = Some(kargs.as_slice());
+    options.kargs = Some(kargs_strs.as_slice());
     options.target_imgref = Some(&state.target_imgref);
     options.proxy_cfg = proxy_cfg;
     options.skip_completion = true; // Must be set to avoid recursion!
@@ -1077,7 +1084,7 @@ pub(crate) struct RootSetup {
     /// True if we should skip finalizing
     skip_finalize: bool,
     boot: Option<MountSpec>,
-    pub(crate) kargs: Vec<String>,
+    pub(crate) kargs: CmdlineOwned,
 }
 
 fn require_boot_uuid(spec: &MountSpec) -> Result<&str> {
@@ -1631,7 +1638,7 @@ async fn install_to_filesystem_impl(
     cleanup: Cleanup,
 ) -> Result<()> {
     if matches!(state.selinux_state, SELinuxFinalState::ForceTargetDisabled) {
-        rootfs.kargs.push("selinux=0".to_string());
+        rootfs.kargs.extend(&Cmdline::from("selinux=0"));
     }
     // Drop exclusive ownership since we're done with mutation
     let rootfs = &*rootfs;
@@ -2166,6 +2173,8 @@ pub(crate) async fn install_to_filesystem(
     if let Some(bootarg) = bootarg {
         kargs.push(bootarg);
     }
+
+    let kargs = Cmdline::from(kargs.join(" "));
 
     let skip_finalize =
         matches!(fsopts.replace, Some(ReplaceMode::Alongside)) || fsopts.skip_finalize;

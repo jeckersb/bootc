@@ -5,6 +5,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, Context, Result};
 use bootc_blockdev::find_parent_devices;
+use bootc_kernel_cmdline::utf8::Cmdline;
 use bootc_mount::inspect_filesystem_of_dir;
 use bootc_mount::tempmount::TempMount;
 use camino::{Utf8Path, Utf8PathBuf};
@@ -380,13 +381,17 @@ pub(crate) fn setup_composefs_bls_boot(
     let (root_path, esp_device, cmdline_refs, fs, bootloader) = match setup_type {
         BootSetupType::Setup((root_setup, state, fs)) => {
             // root_setup.kargs has [root=UUID=<UUID>, "rw"]
-            let mut cmdline_options = String::from(root_setup.kargs.join(" "));
+            let mut cmdline_options = Cmdline::new();
 
-            if state.composefs_options.insecure {
-                cmdline_options.push_str(&format!(" {COMPOSEFS_CMDLINE}=?{id_hex}"));
+            cmdline_options.extend(&root_setup.kargs);
+
+            let composefs_cmdline = if state.composefs_options.insecure {
+                format!("{COMPOSEFS_CMDLINE}=?{id_hex}")
             } else {
-                cmdline_options.push_str(&format!(" {COMPOSEFS_CMDLINE}={id_hex}"));
-            }
+                format!("{COMPOSEFS_CMDLINE}={id_hex}")
+            };
+
+            cmdline_options.extend(&Cmdline::from(&composefs_cmdline));
 
             // Locate ESP partition device
             let esp_part = esp_in(&root_setup.device_info)?;
@@ -407,12 +412,10 @@ pub(crate) fn setup_composefs_bls_boot(
             (
                 Utf8PathBuf::from("/sysroot"),
                 get_esp_partition(&sysroot_parent)?.0,
-                [
-                    format!("root=UUID={}", this_arch_root()),
-                    RW_KARG.to_string(),
-                    format!("{COMPOSEFS_CMDLINE}={id_hex}"),
-                ]
-                .join(" "),
+                Cmdline::from(format!(
+                    "root=UUID={} {RW_KARG} {COMPOSEFS_CMDLINE}={id_hex}",
+                    this_arch_root()
+                )),
                 fs,
                 bootloader,
             )
