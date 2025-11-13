@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// Wraps the raw command line bytes and provides methods for parsing and iterating
 /// over individual parameters. Uses copy-on-write semantics to avoid unnecessary
 /// allocations when working with borrowed data.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Cmdline<'a>(Cow<'a, [u8]>);
 
 /// An owned Cmdline.  Alias for `Cmdline<'static>`.
@@ -374,6 +374,19 @@ impl<'a, 'other> Extend<Parameter<'other>> for Cmdline<'a> {
         }
     }
 }
+
+impl PartialEq for Cmdline<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        let mut our_params = self.iter().collect::<Vec<_>>();
+        our_params.sort();
+        let mut their_params = other.iter().collect::<Vec<_>>();
+        their_params.sort();
+
+        our_params == their_params
+    }
+}
+
+impl Eq for Cmdline<'_> {}
 
 /// A single kernel command line parameter key
 ///
@@ -1090,5 +1103,25 @@ mod tests {
         let params: Vec<_> = kargs.iter_bytes().collect();
 
         assert_eq!(params.len(), 0);
+    }
+
+    #[test]
+    fn test_cmdline_eq() {
+        // Ordering, quoting, and the whole dash-underscore
+        // equivalence thing shouldn't affect whether these are
+        // semantically equal
+        assert_eq!(
+            Cmdline::from("foo bar-with-delim=\"with spaces\""),
+            Cmdline::from("\"bar_with_delim=with spaces\" foo")
+        );
+
+        // Uneven lengths are not equal even if the parameters are. Or
+        // to put it another way, duplicate parameters break equality.
+        // Check with both orderings.
+        assert_ne!(Cmdline::from("foo"), Cmdline::from("foo foo"));
+        assert_ne!(Cmdline::from("foo foo"), Cmdline::from("foo"));
+
+        // Equal lengths but differing duplicates are also not equal
+        assert_ne!(Cmdline::from("a a b"), Cmdline::from("a b b"));
     }
 }
