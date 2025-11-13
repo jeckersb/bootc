@@ -30,6 +30,7 @@ use super::State;
 use super::RUN_BOOTC;
 use super::RW_KARG;
 use crate::task::Task;
+use bootc_kernel_cmdline::utf8::Cmdline;
 #[cfg(feature = "install-to-disk")]
 use bootc_mount::is_mounted_in_pid1_mountns;
 
@@ -424,13 +425,30 @@ pub(crate) fn install_create_rootfs(
         fstype: MountSpec::AUTO.into(),
         options: Some("ro".into()),
     });
-    let kargs = root_blockdev_kargs
-        .into_iter()
-        .flatten()
-        .chain([rootarg, RW_KARG.to_string()].into_iter())
-        .chain(bootarg)
-        .chain(state.config_opts.karg.clone().into_iter().flatten())
-        .collect::<Vec<_>>();
+
+    let mut kargs = Cmdline::new();
+
+    // Add root blockdev kargs (e.g., LUKS parameters)
+    if let Some(root_blockdev_kargs) = root_blockdev_kargs {
+        for karg in root_blockdev_kargs {
+            kargs.extend(&Cmdline::from(karg.as_str()));
+        }
+    }
+
+    // Add root= and rw argument
+    kargs.extend(&Cmdline::from(format!("{rootarg} {RW_KARG}")));
+
+    // Add boot= argument if present
+    if let Some(bootarg) = bootarg {
+        kargs.extend(&Cmdline::from(bootarg.as_str()));
+    }
+
+    // Add CLI kargs
+    if let Some(cli_kargs) = state.config_opts.karg.as_ref() {
+        for karg in cli_kargs {
+            kargs.extend(karg);
+        }
+    }
 
     bootc_mount::mount(&rootdev, &physical_root_path)?;
     let target_rootfs = Dir::open_ambient_dir(&physical_root_path, cap_std::ambient_authority())?;

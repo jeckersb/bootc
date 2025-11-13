@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 
 use anyhow::{anyhow, Result};
-use bootc_kernel_cmdline::utf8::Cmdline;
+use bootc_kernel_cmdline::utf8::{Cmdline, CmdlineOwned};
 use camino::Utf8PathBuf;
 use composefs_boot::bootloader::EFI_EXT;
 use core::fmt;
@@ -15,7 +15,7 @@ use uapi_version::Version;
 
 use crate::composefs_consts::COMPOSEFS_CMDLINE;
 
-#[derive(Debug, PartialEq, PartialOrd, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub enum BLSConfigType {
     EFI {
         /// The path to the EFI binary, usually a UKI
@@ -27,7 +27,7 @@ pub enum BLSConfigType {
         /// The paths to the initrd images.
         initrd: Vec<Utf8PathBuf>,
         /// Kernel command line options.
-        options: Option<String>,
+        options: Option<CmdlineOwned>,
     },
     #[default]
     Unknown,
@@ -229,7 +229,7 @@ pub(crate) fn parse_bls_config(input: &str) -> Result<BLSConfig> {
                 "version" => version = Some(value),
                 "linux" => linux = Some(Utf8PathBuf::from(value)),
                 "initrd" => initrd.push(Utf8PathBuf::from(value)),
-                "options" => options = Some(value),
+                "options" => options = Some(CmdlineOwned::from(value)),
                 "machine-id" => machine_id = Some(value),
                 "sort-key" => sort_key = Some(value),
                 "efi" => efi = Some(Utf8PathBuf::from(value)),
@@ -301,7 +301,7 @@ mod tests {
         assert_eq!(config.version, "2");
         assert_eq!(linux, "/boot/7e11ac46e3e022053e7226a20104ac656bf72d1a84e3a398b7cce70e9df188b6/vmlinuz-5.14.10");
         assert_eq!(initrd, vec!["/boot/7e11ac46e3e022053e7226a20104ac656bf72d1a84e3a398b7cce70e9df188b6/initramfs-5.14.10.img"]);
-        assert_eq!(options, Some("root=UUID=abc123 rw composefs=7e11ac46e3e022053e7226a20104ac656bf72d1a84e3a398b7cce70e9df188b6".to_string()));
+        assert_eq!(&*options.unwrap(), "root=UUID=abc123 rw composefs=7e11ac46e3e022053e7226a20104ac656bf72d1a84e3a398b7cce70e9df188b6");
         assert_eq!(config.extra.get("custom1"), Some(&"value1".to_string()));
         assert_eq!(config.extra.get("custom2"), Some(&"value2".to_string()));
 
