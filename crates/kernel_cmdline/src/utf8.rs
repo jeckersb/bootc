@@ -928,4 +928,24 @@ mod tests {
         assert_eq!(params[1], param("baz=qux"));
         assert_eq!(params[2], param("wiz"));
     }
+
+    #[test]
+    fn test_cmdline_eq() {
+        // Ordering, quoting, and the whole dash-underscore
+        // equivalence thing shouldn't affect whether these are
+        // semantically equal
+        assert_eq!(
+            Cmdline::from("foo bar-with-delim=\"with spaces\""),
+            Cmdline::from("\"bar_with_delim=with spaces\" foo")
+        );
+
+        // Uneven lengths are not equal even if the parameters are. Or
+        // to put it another way, duplicate parameters break equality.
+        // Check with both orderings.
+        assert_ne!(Cmdline::from("foo"), Cmdline::from("foo foo"));
+        assert_ne!(Cmdline::from("foo foo"), Cmdline::from("foo"));
+
+        // Equal lengths but differing duplicates are also not equal
+        assert_ne!(Cmdline::from("a a b"), Cmdline::from("a b b"));
+    }
 }
