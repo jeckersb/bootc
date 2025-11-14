@@ -491,11 +491,11 @@ fn verify_ssh_connectivity(sh: &Shell, port: u16, key_path: &Utf8Path) -> Result
 
 /// Generate a random alphanumeric suffix for VM names
 fn generate_random_suffix() -> String {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
     (0..8)
         .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
+            let idx = rng.random_range(0..CHARSET.len());
             CHARSET[idx] as char
         })
         .collect()
