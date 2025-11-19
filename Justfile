@@ -36,6 +36,10 @@ build:
     podman build {{base_buildargs}} -t localhost/bootc-bin {{buildargs}} .
     ./tests/build-sealed {{variant}} localhost/bootc-bin localhost/bootc
 
+# Build a sealed image from current sources.
+build-sealed:
+    @just --justfile {{justfile()}} variant=composefs-sealeduki-sdboot build
+
 # Build packages (e.g. RPM) using a container buildroot
 _packagecontainer:
     #!/bin/bash
