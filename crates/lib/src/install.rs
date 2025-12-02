@@ -432,7 +432,7 @@ pub(crate) struct InstallResetOpts {
 
     /// Add a kernel argument.  This option can be provided multiple times.
     ///
-    /// Example: --karg=nosmt --karg=console=ttyS0,114800n8
+    /// Example: --karg=nosmt --karg=console=ttyS0,115200n8
     #[clap(long)]
     karg: Option<Vec<CmdlineOwned>>,
 }
