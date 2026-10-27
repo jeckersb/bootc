@@ -532,7 +532,8 @@ fn vendor_denied_crate(path: &Utf8Path) -> Option<&'static str> {
 /// [`VENDOR_DENYLIST`].
 fn vendor_denied_entries(archive: impl std::io::Read) -> Result<Vec<String>> {
     let mut denied = Vec::new();
-    for entry in tar::Archive::new(archive).entries()? {
+    let mut archive = tar::Archive::new(archive);
+    for entry in archive.entries()? {
         let entry = entry?;
         let path = entry.path()?;
         let path = path.to_string_lossy();
@@ -542,6 +543,9 @@ fn vendor_denied_entries(archive: impl std::io::Read) -> Result<Vec<String>> {
             denied.push(format!("{path} (from {name})"));
         }
     }
+    // Drain trailing padding after the end-of-archive marker so the
+    // writer (zstd) doesn't get SIGPIPE.
+    std::io::copy(&mut archive.into_inner(), &mut std::io::sink())?;
     Ok(denied)
 }
 
